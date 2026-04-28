@@ -1,0 +1,14 @@
+.next
+node_modules
+coverage
+dist
+playwright-report
+test-results
+npm-debug.log*
+.git
+.agents
+.claude
+.codex
+.cortex
+backups
+*.tsbuildinfo
