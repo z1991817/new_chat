@@ -1,0 +1,4 @@
+interface:
+  display_name: "artImg Pro Guardrails"
+  short_description: "Keep artImg Pro focused, fast, and lean"
+  default_prompt: "Use $artimg-pro-guardrails to keep this artImg Pro change aligned with the workbench plan, performance budget, and delivery checks."

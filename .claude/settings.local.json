@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(python .codex/skills/ui-ux-pro-max/scripts/search.py \"AI image generation tool minimal chatgpt style\" --design-system -p \"artImg Pro\")",
+      "Bash(python .codex/skills/ui-ux-pro-max/scripts/search.py \"navigation menu hover animation minimal dark\" --domain ux)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

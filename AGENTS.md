@@ -93,6 +93,7 @@ lib/
 
 ## UI Constraints
 
+- UI freeze rule: do not modify the existing UI layout, visual style, interaction flow, or component structure unless the user explicitly requests a UI change. Keep the current UI as-is.
 - First screen is the usable workbench, not a landing page.
 - Build local lightweight components for Button, Input, Textarea, parameter controls, result cards, top bar, history/sidebar, and empty/error states.
 - Use Radix for Dialog, Popover, Tooltip, DropdownMenu, Select, Switch, Slider, Tabs, and mobile sheets when needed.
