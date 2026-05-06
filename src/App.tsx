@@ -8,16 +8,16 @@ import SearchBar from './components/SearchBar'
 import TaskGrid from './components/TaskGrid'
 import HomeSeoContent from './components/HomeSeoContent'
 import InputBar from './components/InputBar'
-import ConsumptionPage from './components/ConsumptionPage'
-import RechargePage from './components/RechargePage'
-import DetailModal from './components/DetailModal'
-import Lightbox from './components/Lightbox'
-import SettingsModal from './components/SettingsModal'
-import ConfirmDialog from './components/ConfirmDialog'
-import Toast from './components/Toast'
-import MaskEditorModal from './components/MaskEditorModal'
 import ImageContextMenu from './components/ImageContextMenu'
 
+const ConsumptionPage = lazy(() => import('./components/ConsumptionPage'))
+const RechargePage = lazy(() => import('./components/RechargePage'))
+const DetailModal = lazy(() => import('./components/DetailModal'))
+const Lightbox = lazy(() => import('./components/Lightbox'))
+const SettingsModal = lazy(() => import('./components/SettingsModal'))
+const ConfirmDialog = lazy(() => import('./components/ConfirmDialog'))
+const Toast = lazy(() => import('./components/Toast'))
+const MaskEditorModal = lazy(() => import('./components/MaskEditorModal'))
 const LoginModal = lazy(() => import('./components/LoginModal'))
 
 const HOME_PATH = '/'
@@ -40,6 +40,12 @@ interface AppProps {
 export default function App({ initialPath }: AppProps) {
   const setSettings = useStore((s) => s.setSettings)
   const loginOpen = useStore((s) => s.loginOpen)
+  const detailTaskId = useStore((s) => s.detailTaskId)
+  const lightboxImageId = useStore((s) => s.lightboxImageId)
+  const showSettings = useStore((s) => s.showSettings)
+  const confirmDialog = useStore((s) => s.confirmDialog)
+  const toast = useStore((s) => s.toast)
+  const maskEditorImageId = useStore((s) => s.maskEditorImageId)
   const initializedRef = useRef(false)
   const [currentPath, setCurrentPath] = useState(() =>
     resolveAppPath(initialPath ?? (typeof window !== 'undefined' ? window.location.pathname : HOME_PATH)),
@@ -125,9 +131,13 @@ export default function App({ initialPath }: AppProps) {
       >
         <div className="safe-area-x max-w-7xl mx-auto">
           {currentPath === CONSUMPTION_PATH ? (
-            <ConsumptionPage />
+            <Suspense>
+              <ConsumptionPage />
+            </Suspense>
           ) : currentPath === RECHARGE_PATH ? (
-            <RechargePage />
+            <Suspense>
+              <RechargePage />
+            </Suspense>
           ) : (
             <>
               <SearchBar />
@@ -138,12 +148,36 @@ export default function App({ initialPath }: AppProps) {
         </div>
       </main>
       {currentPath === HOME_PATH && <InputBar />}
-      <DetailModal />
-      <Lightbox />
-      <SettingsModal />
-      <ConfirmDialog />
-      <Toast />
-      <MaskEditorModal />
+      {detailTaskId && (
+        <Suspense>
+          <DetailModal />
+        </Suspense>
+      )}
+      {lightboxImageId && (
+        <Suspense>
+          <Lightbox />
+        </Suspense>
+      )}
+      {showSettings && (
+        <Suspense>
+          <SettingsModal />
+        </Suspense>
+      )}
+      {confirmDialog && (
+        <Suspense>
+          <ConfirmDialog />
+        </Suspense>
+      )}
+      {toast && (
+        <Suspense>
+          <Toast />
+        </Suspense>
+      )}
+      {maskEditorImageId && (
+        <Suspense>
+          <MaskEditorModal />
+        </Suspense>
+      )}
       <ImageContextMenu />
       {loginOpen && (
         <Suspense>

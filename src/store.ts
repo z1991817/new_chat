@@ -14,7 +14,6 @@ import { hashDataUrl } from './lib/imageHash'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { calculateImageSize, normalizeImageSize } from './lib/size'
-import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate'
 import {
   BackendApiError,
   type BackendModel,
@@ -1517,6 +1516,7 @@ function bytesToDataUrl(bytes: Uint8Array, filePath: string): string {
 /** 导出数据为 ZIP */
 export async function exportData() {
   try {
+    const { zipSync, strToU8 } = await import('fflate')
     const { settings, tasks } = useStore.getState()
     const exportedAt = Date.now()
     const imageCreatedAtFallback = new Map<string, number>()
@@ -1590,6 +1590,7 @@ export async function exportData() {
 /** 导入 ZIP 数据 */
 export async function importData(file: File) {
   try {
+    const { unzipSync, strFromU8 } = await import('fflate')
     const buffer = await file.arrayBuffer()
     const unzipped = unzipSync(new Uint8Array(buffer))
 

@@ -1,12 +1,9 @@
-@import url('https://fontsapi.zeoseven.com/442/main/result.css');
-@import url('https://cdn.jsdelivr.net/npm/@lobehub/webfont-harmony-sans-sc@1.0.0/css/index.css');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-ui-sans: 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-ui-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'Maple Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
   --color-brand-primary: #2563eb;
   --color-brand-primary-hover: #1d4ed8;
