@@ -40,6 +40,7 @@ export interface BackendModelSku {
   sku_code: string
   sku_name: string
   image_size?: string | null
+  unit_consume_points?: number | null
   consume_points?: number | null
   is_default?: number
 }
@@ -52,6 +53,7 @@ export interface BackendModel {
   description?: string | null
   aspect_ratio?: string | null
   aspect_ratios?: string[]
+  unit_consume_points?: number | null
   consume_points?: number | null
   default_sku_code?: string | null
   skus?: BackendModelSku[]
@@ -79,6 +81,64 @@ interface PaginatedCreations {
     pageSize?: number
     totalPages?: number
   }
+}
+
+export interface RechargeOrderRecord {
+  id: number
+  order_no?: string | null
+  package_name?: string | null
+  amount?: number | null
+  points?: number | null
+  status?: string | null
+  payment_channel?: string | null
+  created_at?: string | null
+}
+
+export interface PointsLogRecord {
+  id: number
+  change_type?: string | null
+  change_amount: number
+  balance_after?: number | null
+  order_no?: string | null
+  remark?: string | null
+  created_at?: string | null
+}
+
+export interface RechargePackage {
+  id: string
+  name: string
+  amount: number
+  points: number
+}
+
+export interface RechargeOrderPayload {
+  packageId: string
+  payType: 1 | 2 | 3 | 11
+}
+
+export interface RechargeOrderResult {
+  orderId: number
+  orderNo: string
+  amount: number
+  points: number
+  packageName: string
+  payUrl?: string | null
+}
+
+interface BackendPaginationList<T> {
+  total?: number
+  list?: T[]
+  page?: number
+  pageSize?: number
+  totalPages?: number
+}
+
+interface PaginationList<T> {
+  total: number
+  list: T[]
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 export interface TaskMeta {
@@ -290,10 +350,12 @@ export async function createTextToImage(
   payload: {
     prompt: string
     size?: string
+    imageSize?: '1K' | '2K' | '4K'
     aspectRatio: string
     model: string
-    billingModelKey?: string
+    skuId?: number
     skuCode?: string
+    outputFormat?: 'jpg' | 'png' | 'webp'
     n?: 1
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
@@ -320,10 +382,12 @@ export async function createImageToImage(
   payload: {
     prompt: string
     size?: string
+    imageSize?: '1K' | '2K' | '4K'
     aspectRatio: string
     model: string
-    billingModelKey?: string
+    skuId?: number
     skuCode?: string
+    outputFormat?: 'jpg' | 'png' | 'webp'
     imageUrl: string[]
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
@@ -408,4 +472,69 @@ export async function getAllMyCreations(settings: AppSettings, token: string, pa
   }
 
   return records
+}
+
+function normalizePaginationList<T>(payload: BackendPaginationList<T> | undefined, fallbackPage: number, fallbackPageSize: number): PaginationList<T> {
+  const page = Math.max(payload?.page ?? fallbackPage, 1)
+  const pageSize = Math.max(payload?.pageSize ?? fallbackPageSize, 1)
+  const total = Math.max(payload?.total ?? 0, 0)
+  const inferredTotalPages = Math.ceil(total / pageSize)
+  const totalPages = Math.max(payload?.totalPages ?? (inferredTotalPages || 1), 1)
+  return {
+    total,
+    list: payload?.list ?? [],
+    page,
+    pageSize,
+    totalPages,
+  }
+}
+
+export async function getRechargeOrders(
+  settings: AppSettings,
+  token: string,
+  page: number,
+  pageSize: number,
+): Promise<PaginationList<RechargeOrderRecord>> {
+  const data = await requestBackend<BackendPaginationList<RechargeOrderRecord>>(
+    settings,
+    `/app/recharge/orders?page=${page}&pageSize=${pageSize}`,
+    { method: 'GET', token },
+  )
+  return normalizePaginationList(data, page, pageSize)
+}
+
+export async function getPointsLogs(
+  settings: AppSettings,
+  token: string,
+  page: number,
+  pageSize: number,
+): Promise<PaginationList<PointsLogRecord>> {
+  const data = await requestBackend<BackendPaginationList<PointsLogRecord>>(
+    settings,
+    `/app/points/logs?page=${page}&pageSize=${pageSize}`,
+    { method: 'GET', token },
+  )
+  return normalizePaginationList(data, page, pageSize)
+}
+
+export async function getRechargePackages(settings: AppSettings, token: string): Promise<RechargePackage[]> {
+  const data = await requestBackend<RechargePackage[] | { list?: RechargePackage[] }>(
+    settings,
+    '/app/recharge/packages',
+    { method: 'GET', token },
+  )
+  if (Array.isArray(data)) return data
+  return data?.list ?? []
+}
+
+export async function createRechargeOrder(
+  settings: AppSettings,
+  token: string,
+  payload: RechargeOrderPayload,
+): Promise<RechargeOrderResult> {
+  return requestBackend<RechargeOrderResult>(settings, '/app/recharge/orders', {
+    method: 'POST',
+    token,
+    body: payload,
+  })
 }

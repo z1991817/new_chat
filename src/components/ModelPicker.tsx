@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Coins } from 'lucide-react'
 import type { BackendModel } from '../lib/backendApi'
 
@@ -21,7 +21,6 @@ type ProviderKey = 'openai' | 'google' | 'seedream' | 'flux' | 'qwen' | 'other'
 interface ProviderMeta {
   key: ProviderKey
   name: string
-  gradient: string
   iconText: string
   dotColor: string
   svgSrc?: string
@@ -38,27 +37,28 @@ interface ModelEntry {
 }
 
 const PROVIDERS: ProviderMeta[] = [
-  { key: 'google',   name: 'Google',   gradient: 'linear-gradient(135deg,#4285F4,#60a5fa)', iconText: 'G', dotColor: '#4285F4', svgSrc: '/google.svg' },
-  { key: 'seedream', name: 'Seedream', gradient: 'linear-gradient(135deg,#6366f1,#818cf8)', iconText: 'S', dotColor: '#6366f1', svgSrc: '/seedream.svg' },
-  { key: 'openai',   name: 'OpenAI',   gradient: 'linear-gradient(135deg,#3b82f6,#2563eb)', iconText: 'O', dotColor: '#3b82f6', svgSrc: '/openai.svg' },
-  { key: 'flux',     name: 'Flux AI',  gradient: 'linear-gradient(135deg,#0ea5e9,#38bdf8)', iconText: 'F', dotColor: '#0ea5e9' },
-  { key: 'qwen',     name: 'Qwen',     gradient: 'linear-gradient(135deg,#7c3aed,#a855f7)', iconText: 'Q', dotColor: '#7c3aed' },
-  { key: 'other',    name: '其他',      gradient: 'linear-gradient(135deg,#475569,#64748b)', iconText: '·', dotColor: '#64748b' },
+  { key: 'openai', name: 'OpenAI', iconText: 'O', dotColor: '#2563eb', svgSrc: '/openai.svg' },
+  { key: 'google', name: 'Google', iconText: 'G', dotColor: '#4285F4', svgSrc: '/google.svg' },
+  { key: 'seedream', name: 'Seedream', iconText: 'S', dotColor: '#6366f1', svgSrc: '/seedream.svg' },
+  { key: 'flux', name: 'Flux AI', iconText: 'F', dotColor: '#0ea5e9' },
+  { key: 'qwen', name: 'Qwen', iconText: 'Q', dotColor: '#7c3aed' },
+  { key: 'other', name: '其他', iconText: '·', dotColor: '#64748b' },
 ]
 
 function getProviderByKey(key: ProviderKey): ProviderMeta {
-  return PROVIDERS.find((p) => p.key === key) ?? PROVIDERS[PROVIDERS.length - 1]
+  return PROVIDERS.find((provider) => provider.key === key) ?? PROVIDERS[PROVIDERS.length - 1]
 }
 
 function inferProvider(name: string, modelKey: string, manufacturer?: string | null): ProviderMeta {
   if (manufacturer) {
     const m = manufacturer.toLowerCase()
-    if (m.includes('openai'))    return getProviderByKey('openai')
-    if (m.includes('google'))    return getProviderByKey('google')
+    if (m.includes('openai')) return getProviderByKey('openai')
+    if (m.includes('google')) return getProviderByKey('google')
     if (m.includes('seedream') || m.includes('bytedance')) return getProviderByKey('seedream')
-    if (m.includes('flux') || m.includes('blackforest'))   return getProviderByKey('flux')
-    if (m.includes('qwen') || m.includes('aliyun'))        return getProviderByKey('qwen')
+    if (m.includes('flux') || m.includes('blackforest')) return getProviderByKey('flux')
+    if (m.includes('qwen') || m.includes('aliyun')) return getProviderByKey('qwen')
   }
+
   const text = `${name} ${modelKey}`.toLowerCase()
   if (/(openai|gpt|dall|o1|o3|o4)/.test(text)) return getProviderByKey('openai')
   if (/(google|gemini|imagen|veo)/.test(text)) return getProviderByKey('google')
@@ -86,13 +86,19 @@ function toModelEntries(models: BackendModel[], fallbackOptions: FallbackOption[
         value: item.model_key,
         label,
         description: item.description?.trim() || `${provider.name} 官方模型通道`,
-        points: typeof item.consume_points === 'number' ? item.consume_points : null,
+        points:
+          typeof item.unit_consume_points === 'number'
+            ? item.unit_consume_points
+            : typeof item.consume_points === 'number'
+              ? item.consume_points
+              : null,
         provider,
         isHot,
         isNew,
       }
     })
   }
+
   return fallbackOptions.map((item) => {
     const provider = inferProvider(item.label, item.value)
     const { isHot, isNew } = inferBadge(item.label, item.value)
@@ -135,20 +141,20 @@ export default function ModelPicker({
       if (list) list.push(entry)
       else groups.set(key, [entry])
     }
-    return PROVIDERS.filter((p) => groups.has(p.key)).map((p) => ({
-      provider: p,
-      items: groups.get(p.key) ?? [],
+    return PROVIDERS.filter((provider) => groups.has(provider.key)).map((provider) => ({
+      provider,
+      items: groups.get(provider.key) ?? [],
     }))
   }, [entries])
 
   const visibleModels = useMemo(() => {
-    const target = groupedProviders.find((g) => g.provider.key === activeProvider)
+    const target = groupedProviders.find((group) => group.provider.key === activeProvider)
     return target?.items ?? groupedProviders[0]?.items ?? []
   }, [groupedProviders, activeProvider])
 
   useEffect(() => {
     if (!selected) return
-    const hasCurrentProvider = groupedProviders.some((g) => g.provider.key === selected.provider.key)
+    const hasCurrentProvider = groupedProviders.some((group) => group.provider.key === selected.provider.key)
     if (hasCurrentProvider) {
       setActiveProvider(selected.provider.key)
       return
@@ -157,11 +163,11 @@ export default function ModelPicker({
   }, [selected, groupedProviders])
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setIsOpen(false)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false)
     }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false)
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
@@ -172,20 +178,20 @@ export default function ModelPicker({
   }, [])
 
   const handleToggle = useCallback(
-    (e: React.MouseEvent) => {
+    (event: React.MouseEvent) => {
       if (disabled) return
-      e.preventDefault()
-      e.stopPropagation()
+      event.preventDefault()
+      event.stopPropagation()
       if (!isOpen && triggerRef.current) {
         const rect = triggerRef.current.getBoundingClientRect()
-        const panelWidth = Math.min(860, window.innerWidth - 24)
-        const estimatedHeight = 460
+        const panelWidth = Math.min(672, window.innerWidth - 24)
+        const estimatedHeight = 430
         const spaceBelow = window.innerHeight - rect.bottom
         const spaceAbove = rect.top
         setOpenUp(spaceAbove > spaceBelow && spaceAbove > estimatedHeight / 2)
         setAlignRight(rect.left + panelWidth > window.innerWidth - 12)
         setMounted(false)
-        setTimeout(() => setMounted(true), 10)
+        window.setTimeout(() => setMounted(true), 10)
       }
       setIsOpen((prev) => !prev)
     },
@@ -193,454 +199,150 @@ export default function ModelPicker({
   )
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap');
-
-        .mp-panel {
-          font-family: 'DM Sans', system-ui, sans-serif;
-          opacity: 0;
-          transform: translateY(6px) scale(0.98);
-          transition: opacity 180ms ease, transform 180ms ease;
-        }
-        .mp-panel.mp-open {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-        .mp-panel-up {
-          opacity: 0;
-          transform: translateY(-6px) scale(0.98);
-          transition: opacity 180ms ease, transform 180ms ease;
-        }
-        .mp-panel-up.mp-open {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-        .mp-card {
-          transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
-        }
-        .mp-card:hover {
-          background: rgba(255,255,255,0.055) !important;
-        }
-        .mp-card.mp-selected {
-          background: rgba(59,130,246,0.12) !important;
-          border-color: rgba(59,130,246,0.4) !important;
-          box-shadow: 0 0 0 1px rgba(59,130,246,0.1) inset;
-        }
-        .mp-sidebar-btn {
-          transition: background 120ms ease, color 120ms ease;
-        }
-        .mp-sidebar-btn:hover {
-          background: rgba(59,130,246,0.08);
-        }
-        .mp-sidebar-btn.mp-active {
-          background: rgba(59,130,246,0.14);
-        }
-        .mp-scroll::-webkit-scrollbar { width: 4px; }
-        .mp-scroll::-webkit-scrollbar-track { background: transparent; }
-        .mp-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
-        .mp-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
-        .mp-badge-hot {
-          background: linear-gradient(90deg, #f97316, #ef4444);
-          font-family: 'Outfit', sans-serif;
-        }
-        .mp-badge-new {
-          background: linear-gradient(90deg, #6366f1, #8b5cf6);
-          font-family: 'Outfit', sans-serif;
-        }
-        .mp-points-badge {
-          background: rgba(251,191,36,0.1);
-          border: 1px solid rgba(251,191,36,0.25);
-        }
-        .mp-trigger-chevron {
-          transition: transform 200ms ease;
-        }
-        .mp-trigger-chevron.open {
-          transform: rotate(180deg);
-        }
-      `}</style>
-
-      <div ref={containerRef} className="relative w-full">
-        {/* Trigger */}
-        <div
-          ref={triggerRef}
-          onClick={handleToggle}
-          className={`flex items-center justify-between gap-2 w-full cursor-pointer select-none ${className ?? ''} ${
-            disabled ? '!opacity-40 !cursor-not-allowed' : ''
-          }`}
+    <div ref={containerRef} className="relative w-full">
+      <div
+        ref={triggerRef}
+        onClick={handleToggle}
+        className={`flex w-full cursor-pointer select-none items-center justify-between gap-2 ${className ?? ''} ${
+          disabled ? '!cursor-not-allowed !opacity-40' : ''
+        }`}
+      >
+        <span className="truncate">{selected?.label ?? value}</span>
+        <svg
+          className={`h-3.5 w-3.5 flex-shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
-          <span className="truncate">{selected?.label ?? value}</span>
-          <svg
-            className={`mp-trigger-chevron w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500 ${isOpen ? 'open' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
 
-        {/* Panel */}
-        {isOpen && (
-          <div
-            className={`mp-panel${openUp ? ' mp-panel-up' : ''}${mounted ? ' mp-open' : ''} absolute z-[65] ${alignRight ? 'right-0' : 'left-0'} ${openUp ? 'bottom-full mb-2' : 'top-full mt-2'} w-[min(54rem,calc(100vw-1.5rem))]`}
-            style={{
-              background: 'rgba(10,12,20,0.97)',
-              backdropFilter: 'blur(24px) saturate(160%)',
-              WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-              border: '1px solid rgba(59,130,246,0.15)',
-              borderRadius: '16px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(59,130,246,0.06) inset',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                padding: '14px 18px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontWeight: 600,
-                    fontSize: '14px',
-                    color: '#fff',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  选择模型
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '7px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.45)',
-                  transition: 'background 120ms, color 120ms',
-                }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'
-                  ;(e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.8)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'
-                  ;(e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)'
-                }}
-                aria-label="关闭"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
+      {isOpen && (
+        <div
+          className={[
+            'absolute z-[65] w-[min(42rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 shadow-2xl shadow-gray-900/15 ring-1 ring-black/5 backdrop-blur-xl transition duration-150 dark:border-white/[0.08] dark:bg-gray-900/95 dark:shadow-black/40 dark:ring-white/10',
+            alignRight ? 'right-0' : 'left-0',
+            openUp ? 'bottom-full mb-2' : 'top-full mt-2',
+            mounted ? 'translate-y-0 opacity-100' : openUp ? 'translate-y-1 opacity-0' : '-translate-y-1 opacity-0',
+          ].join(' ')}
+        >
+          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-white/[0.08]">
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">选择模型</p>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{entries.length} 个模型可用</p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
+              aria-label="关闭"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-            {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: '168px 1fr', minHeight: '340px' }}>
-              {/* Sidebar */}
-              <aside
-                style={{
-                  borderRight: '1px solid rgba(255,255,255,0.07)',
-                  padding: '10px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}
-              >
-                {groupedProviders.map(({ provider, items }) => {
-                  const active = provider.key === activeProvider
-                  return (
-                    <button
-                      key={provider.key}
-                      type="button"
-                      onClick={() => setActiveProvider(provider.key)}
-                      className={`mp-sidebar-btn${active ? ' mp-active' : ''}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: '9px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        background: active ? 'rgba(59,130,246,0.14)' : 'transparent',
-                      }}
+          <div className="grid max-h-[28rem] sm:grid-cols-[9rem_1fr]">
+            <aside className="flex gap-1 overflow-x-auto border-b border-gray-100 p-2 dark:border-white/[0.08] sm:flex-col sm:overflow-x-visible sm:border-b-0 sm:border-r">
+              {groupedProviders.map(({ provider, items }) => {
+                const active = provider.key === activeProvider
+                return (
+                  <button
+                    key={provider.key}
+                    type="button"
+                    onClick={() => setActiveProvider(provider.key)}
+                    className={[
+                      'flex min-w-max items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors sm:min-w-0',
+                      active
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+                        : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.06]',
+                    ].join(' ')}
+                  >
+                    <span
+                      className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white text-xs font-bold text-white dark:border-white/[0.08] dark:bg-white/[0.04]"
+                      style={provider.svgSrc ? undefined : { backgroundColor: provider.dotColor, borderColor: 'transparent' }}
                     >
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '30px',
-                          height: '30px',
-                          borderRadius: '8px',
-                          background: provider.svgSrc ? 'rgba(255,255,255,0.06)' : provider.gradient,
-                          fontSize: '13px',
-                          fontWeight: 700,
-                          color: '#fff',
-                          fontFamily: "'Outfit', sans-serif",
-                          flexShrink: 0,
-                          boxShadow: active ? `0 0 12px ${provider.dotColor}55` : 'none',
-                          transition: 'box-shadow 200ms',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {provider.svgSrc ? (
-                          <img src={provider.svgSrc} alt={provider.name} width={18} height={18} style={{ objectFit: 'contain' }} />
-                        ) : (
-                          provider.iconText
-                        )}
-                      </span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            display: 'block',
-                            fontFamily: "'Outfit', sans-serif",
-                            fontWeight: active ? 600 : 500,
-                            fontSize: '13px',
-                            color: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)',
-                            letterSpacing: '-0.01em',
-                            transition: 'color 120ms',
-                          }}
-                        >
-                          {provider.name}
-                        </span>
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "'DM Sans', sans-serif",
-                          fontSize: '11px',
-                          fontWeight: 500,
-                          color: active ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)',
-                          flexShrink: 0,
-                          transition: 'color 120ms',
-                        }}
-                      >
-                        {items.length}
-                      </span>
-                    </button>
-                  )
-                })}
-              </aside>
+                      {provider.svgSrc ? (
+                        <img src={provider.svgSrc} alt={provider.name} className="h-4 w-4 object-contain" />
+                      ) : (
+                        provider.iconText
+                      )}
+                    </span>
+                    <span className="truncate font-medium">{provider.name}</span>
+                    <span className="ml-auto rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-white/[0.06] dark:text-gray-400">
+                      {items.length}
+                    </span>
+                  </button>
+                )
+              })}
+            </aside>
 
-              {/* Model list */}
-              <div
-                className="mp-scroll"
-                style={{
-                  maxHeight: '420px',
-                  overflowY: 'auto',
-                  padding: '10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                }}
-              >
-                {visibleModels.map((item) => {
-                  const isSelected = item.value === value
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => {
-                        onChange(item.value)
-                        setIsOpen(false)
-                      }}
-                      className={`mp-card${isSelected ? ' mp-selected' : ''}`}
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '11px',
-                        border: `1px solid ${isSelected ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.06)'}`,
-                        background: isSelected ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.025)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Name row */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                          <span
-                            style={{
-                              fontFamily: "'Outfit', sans-serif",
-                              fontWeight: 600,
-                              fontSize: '14px',
-                              color: isSelected ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.82)',
-                              letterSpacing: '-0.01em',
-                              lineHeight: 1.3,
-                            }}
-                          >
-                            {item.label}
+            <div className="max-h-[22rem] space-y-2 overflow-y-auto p-2">
+              {visibleModels.map((item) => {
+                const isSelected = item.value === value
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(item.value)
+                      setIsOpen(false)
+                    }}
+                    className={[
+                      'flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition-colors',
+                      isSelected
+                        ? 'border-blue-300 bg-blue-50/80 dark:border-blue-400/40 dark:bg-blue-500/10'
+                        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]',
+                    ].join(' ')}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</span>
+                        {item.isNew && (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                            NEW
                           </span>
-                          {item.isNew && (
-                            <span
-                              className="mp-badge-new"
-                              style={{
-                                padding: '1px 6px',
-                                borderRadius: '5px',
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                color: '#fff',
-                                letterSpacing: '0.02em',
-                                lineHeight: '18px',
-                              }}
-                            >
-                              NEW
-                            </span>
-                          )}
-                          {!item.isNew && item.isHot && (
-                            <span
-                              className="mp-badge-hot"
-                              style={{
-                                padding: '1px 6px',
-                                borderRadius: '5px',
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                color: '#fff',
-                                letterSpacing: '0.02em',
-                                lineHeight: '18px',
-                              }}
-                            >
-                              HOT
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Description */}
-                        <p
-                          style={{
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: '12px',
-                            color: 'rgba(255,255,255,0.65)',
-                            marginTop: '4px',
-                            lineHeight: 1.5,
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {item.description}
-                        </p>
-
-                        {/* Points */}
-                        {item.points != null && (
-                          <div style={{ marginTop: '8px' }}>
-                            <span
-                              className="mp-points-badge"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                fontFamily: "'DM Sans', sans-serif",
-                                fontSize: '11px',
-                                fontWeight: 500,
-                                color: 'rgba(251,191,36,0.9)',
-                              }}
-                            >
-                              {/* amber coin icon matching Header's 积分 style */}
-                              <Coins size={11} strokeWidth={1.8} />
-                              {item.points}+ 积分
-                            </span>
-                          </div>
                         )}
-                      </div>
-
-                      {/* Check */}
-                      {isSelected && (
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '50%',
-                            background: item.provider.gradient,
-                            flexShrink: 0,
-                            marginTop: '1px',
-                            boxShadow: `0 0 10px ${item.provider.dotColor}66`,
-                          }}
-                        >
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                            <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                        {!item.isNew && item.isHot && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+                            HOT
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                        {item.description}
+                      </span>
+                      {item.points != null && (
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+                          <Coins size={12} strokeWidth={1.8} />
+                          {item.points}+ 积分
                         </span>
                       )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+                    </span>
 
-            {/* Footer */}
-            <div
-              style={{
-                borderTop: '1px solid rgba(255,255,255,0.06)',
-                padding: '9px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '11px',
-                  color: 'rgba(255,255,255,0.5)',
-                }}
-              >
-                {entries.length} 个模型可用
-              </span>
-              {selected && (
-                <span
-                  style={{
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '11px',
-                    color: 'rgba(255,255,255,0.6)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: selected.provider.dotColor,
-                      boxShadow: `0 0 6px ${selected.provider.dotColor}`,
-                    }}
-                  />
-                  当前: {selected.label}
-                </span>
-              )}
+                    {isSelected && (
+                      <span className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-blue-500">
+                        <svg className="h-3 w-3" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
-        )}
-      </div>
-    </>
+
+          {selected && (
+            <div className="flex items-center gap-2 border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-white/[0.08] dark:text-gray-400">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: selected.provider.dotColor }} />
+              当前：{selected.label}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

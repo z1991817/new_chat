@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent }
 import { createPortal } from 'react-dom'
 import { ensureImageCached, useStore } from '../store'
 import { canvasToBlob, loadImage } from '../lib/canvasImage'
-import { storeImage } from '../lib/db'
+import { hashDataUrl } from '../lib/imageHash'
 import { prepareMaskTargetDataUrl, replaceMaskTargetImage } from '../lib/maskPreprocess'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import {
@@ -789,7 +789,7 @@ export default function MaskEditorModal() {
       setIsSaving(true)
       const blob = await canvasToBlob(canvas, 'image/png')
       const maskDataUrl = await blobToDataUrl(blob)
-      const workingTargetId = await storeImage(sourceDataUrl, 'upload')
+      const workingTargetId = await hashDataUrl(sourceDataUrl)
       if (
         saveTokenRef.current !== token ||
         activeSessionIdRef.current !== savingSessionId ||

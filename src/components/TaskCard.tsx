@@ -23,7 +23,6 @@ export default function TaskCard({
 }: Props) {
   const [thumbSrc, setThumbSrc] = useState<string>('')
   const [coverRatio, setCoverRatio] = useState<string>('')
-  const [coverSize, setCoverSize] = useState<string>('')
   const [now, setNow] = useState(Date.now())
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [isSwiping, setIsSwiping] = useState(false)
@@ -112,7 +111,6 @@ export default function TaskCard({
   // 加载缩略图
   useEffect(() => {
     setCoverRatio('')
-    setCoverSize('')
 
     if (firstOutputImageId) {
       const cached = getCachedImage(firstOutputImageId)
@@ -136,13 +134,11 @@ export default function TaskCard({
     image.onload = () => {
       if (!cancelled && image.naturalWidth > 0 && image.naturalHeight > 0) {
         setCoverRatio(formatImageRatio(image.naturalWidth, image.naturalHeight))
-        setCoverSize(`${image.naturalWidth}×${image.naturalHeight}`)
       }
     }
     image.src = thumbSrc
     if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
       setCoverRatio(formatImageRatio(image.naturalWidth, image.naturalHeight))
-      setCoverSize(`${image.naturalWidth}×${image.naturalHeight}`)
     }
 
     return () => {
@@ -166,6 +162,21 @@ export default function TaskCard({
   const aggregateActualParams = task.outputImages?.length
     ? { ...task.actualParams, n: task.outputImages.length }
     : task.actualParams
+  const actualSize = (
+    firstOutputImageId
+      ? task.actualParamsByImage?.[firstOutputImageId]?.size
+      : undefined
+  ) || task.actualParams?.size
+  const ratioFromApiSize = (() => {
+    if (!actualSize) return ''
+    const match = String(actualSize).trim().match(/^(\d+)\s*[xX×]\s*(\d+)$/)
+    if (!match) return ''
+    const width = Number(match[1])
+    const height = Number(match[2])
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return ''
+    return formatImageRatio(width, height)
+  })()
+  const displayRatio = ratioFromApiSize || coverRatio
   const isSwipeReady = Math.abs(swipeOffset) >= 40
   const showSwipeAction = isSwipeReady || swipeActionActive
   const swipeBgClass = showSwipeAction
@@ -306,7 +317,7 @@ export default function TaskCard({
           )}
           {/* 运行中显示耗时，完成后显示封面图比例与分辨率标签 */}
           <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-            {task.status !== 'done' || !coverRatio || !coverSize ? (
+            {task.status !== 'done' || !displayRatio ? (
               <span className="flex items-center gap-1 bg-black/50 text-white text-[10px] sm:text-xs px-1.5 py-0.5 rounded backdrop-blur-sm font-mono">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -314,14 +325,9 @@ export default function TaskCard({
                 {duration}
               </span>
             ) : (
-              <>
-                <span className="bg-black/50 text-white text-[10px] sm:text-xs px-1.5 py-0.5 rounded backdrop-blur-sm font-mono">
-                  {coverRatio}
-                </span>
-                <span className="bg-black/50 text-white/90 text-[10px] sm:text-xs px-1.5 py-0.5 rounded backdrop-blur-sm font-medium">
-                  {coverSize}
-                </span>
-              </>
+              <span className="bg-black/50 text-white text-[10px] sm:text-xs px-1.5 py-0.5 rounded backdrop-blur-sm font-mono">
+                {displayRatio}
+              </span>
             )}
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { useStore, getCachedImage, ensureImageCached, reuseConfig, editOutputs, removeTask, updateTaskInStore, showCodexCliPrompt, getCodexCliPromptKey, retryTask } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { formatImageRatio } from '../lib/size'
-import { ActualValueBadge, DetailParamValue } from '../lib/paramDisplay'
+import { ActualValueBadge } from '../lib/paramDisplay'
 import { copyBlobToClipboard, copyTextToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 
@@ -15,6 +15,7 @@ export default function DetailModal() {
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const showToast = useStore((s) => s.showToast)
   const settings = useStore((s) => s.settings)
+  const models = useStore((s) => s.models)
   const dismissedCodexCliPrompts = useStore((s) => s.dismissedCodexCliPrompts)
 
   const [imageIndex, setImageIndex] = useState(0)
@@ -79,6 +80,12 @@ export default function DetailModal() {
   const currentOutputImageId = task?.outputImages?.[imageIndex] || ''
   const currentOutputCosSrc = currentOutputImageId ? task?.outputCosUrlByImage?.[currentOutputImageId] || '' : ''
   const currentOutputImageSrc = currentOutputCosSrc || (currentOutputImageId ? imageSrcs[currentOutputImageId] || '' : '')
+  const outputLightboxImageList = useMemo(
+    () => (task?.outputImages ?? []).map((imgId) => task?.outputCosUrlByImage?.[imgId] || imgId),
+    [task?.outputImages, task?.outputCosUrlByImage],
+  )
+  const currentOutputLightboxImageId =
+    (currentOutputImageId && task?.outputCosUrlByImage?.[currentOutputImageId]) || currentOutputImageId
   const maskTargetId = task?.maskTargetImageId || null
   const maskTargetSrc = maskTargetId ? imageSrcs[maskTargetId] || '' : ''
   const maskSrc = task?.maskImageId ? imageSrcs[task.maskImageId] || '' : ''
@@ -157,13 +164,26 @@ export default function DetailModal() {
   const outputLen = task.outputImages?.length || 0
   const currentImageRatio = currentOutputImageId ? imageRatios[currentOutputImageId] : ''
   const currentImageSize = currentOutputImageId ? imageSizes[currentOutputImageId] : ''
-  const currentActualParams = currentOutputImageId ? task.actualParamsByImage?.[currentOutputImageId] : undefined
   const currentRevisedPrompt = currentOutputImageId ? task.revisedPromptByImage?.[currentOutputImageId]?.trim() : ''
   const showRevisedPrompt = Boolean(currentRevisedPrompt && currentRevisedPrompt !== task.prompt.trim())
   const codexCliPromptKey = getCodexCliPromptKey(settings)
   const hasHandledPromptWarning = settings.codexCli || dismissedCodexCliPrompts.includes(codexCliPromptKey)
   const showPromptWarning = Boolean(currentOutputImageId && (!currentRevisedPrompt || showRevisedPrompt) && !hasHandledPromptWarning)
-  const aggregateActualParams = outputLen > 0 ? { ...task.actualParams, n: outputLen } : task.actualParams
+  const modelConfig = models.find((item) => item.model_key === task.model)
+  const selectedSkuById = task.skuId != null ? modelConfig?.skus?.find((sku) => sku.id === task.skuId) : undefined
+  const selectedSkuByCode = task.skuCode ? modelConfig?.skus?.find((sku) => sku.sku_code === task.skuCode) : undefined
+  const selectedSku = selectedSkuById ?? selectedSkuByCode
+  const displayModel = task.model || settings.model
+  const displaySize = selectedSku?.sku_name?.trim() || selectedSku?.sku_code || task.skuCode || task.params.size
+  const displayPoints =
+    task.unitConsumePoints ??
+    task.unit_consume_points ??
+    task.consumePoints ??
+    selectedSku?.unit_consume_points ??
+    selectedSku?.consume_points ??
+    modelConfig?.unit_consume_points ??
+    modelConfig?.consume_points ??
+    null
 
   const formatTime = (ts: number | null) => {
     if (!ts) return ''
@@ -302,7 +322,7 @@ export default function DetailModal() {
                   setImageLabelLeft(Math.max(8, imageRect.left - panelRect.left))
                 }}
                 onClick={() =>
-                  setLightboxImageId(task.outputImages[imageIndex], task.outputImages)
+                  setLightboxImageId(currentOutputLightboxImageId, outputLightboxImageList)
                 }
                 alt=""
               />
@@ -524,37 +544,22 @@ export default function DetailModal() {
             </h3>
             <div className="grid grid-cols-2 gap-2 text-xs mb-4">
               <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
+                <span className="text-gray-400 dark:text-gray-500">模型</span>
+                <br />
+                <span className="font-medium text-gray-700 dark:text-gray-300 break-all">{displayModel}</span>
+              </div>
+              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
                 <span className="text-gray-400 dark:text-gray-500">尺寸</span>
                 <br />
-                <DetailParamValue task={task} paramKey="size" className="font-medium" actualParams={currentActualParams} />
+                <span className="font-medium text-gray-700 dark:text-gray-300">{displaySize || '-'}</span>
               </div>
               <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">质量</span>
+                <span className="text-gray-400 dark:text-gray-500">消耗积分</span>
                 <br />
-                <DetailParamValue task={task} paramKey="quality" className="font-medium" actualParams={currentActualParams} />
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {displayPoints != null ? `${displayPoints}` : '-'}
+                </span>
               </div>
-              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">格式</span>
-                <br />
-                <DetailParamValue task={task} paramKey="output_format" className="font-medium" actualParams={currentActualParams} />
-              </div>
-              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">审核</span>
-                <br />
-                <DetailParamValue task={task} paramKey="moderation" className="font-medium" actualParams={currentActualParams} />
-              </div>
-              <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                <span className="text-gray-400 dark:text-gray-500">数量</span>
-                <br />
-                <DetailParamValue task={task} paramKey="n" className="font-medium" actualParams={aggregateActualParams} />
-              </div>
-              {task.params.output_compression != null && (
-                <div className="bg-gray-50 dark:bg-white/[0.03] rounded-lg px-3 py-2">
-                  <span className="text-gray-400 dark:text-gray-500">压缩率</span>
-                  <br />
-                  <DetailParamValue task={task} paramKey="output_compression" className="font-medium" actualParams={currentActualParams} />
-                </div>
-              )}
             </div>
 
             {/* 时间 */}

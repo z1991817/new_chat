@@ -1,12 +1,12 @@
 {
-  "name": "GPT Image Playground",
-  "short_name": "GPT Image",
-  "description": "GPT Image Playground 图像生成工作台",
+  "name": "Art Image",
+  "short_name": "Art Image",
+  "description": "Art Image 图像生成工作台",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#030712",
-  "theme_color": "#111827",
+  "background_color": "#fafafa",
+  "theme_color": "#2563eb",
   "icons": [
     {
       "src": "./pwa-icon.svg",

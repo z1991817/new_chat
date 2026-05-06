@@ -7,21 +7,10 @@ import type {
   MaskDraft,
   TaskRecord,
   ExportData,
+  StoredImage,
 } from './types'
 import { DEFAULT_SETTINGS, DEFAULT_PARAMS } from './types'
-import {
-  getAllTasks,
-  putTask,
-  deleteTask as dbDeleteTask,
-  clearTasks as dbClearTasks,
-  getImage,
-  getAllImages,
-  putImage,
-  deleteImage,
-  clearImages,
-  storeImage,
-  hashDataUrl,
-} from './lib/db'
+import { hashDataUrl } from './lib/imageHash'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { calculateImageSize, normalizeImageSize } from './lib/size'
@@ -46,7 +35,7 @@ import {
 } from './lib/backendApi'
 
 // ===== Image cache =====
-// 内存缓存，id → dataUrl，避免每次从 IndexedDB 读取
+// 内存缓存，id → dataUrl，避免重复下载或重复转换
 
 const imageCache = new Map<string, string>()
 const BANANA_TASK_STORAGE_KEY = 'banana-create-task'
@@ -66,18 +55,33 @@ export function getCachedImage(id: string): string | undefined {
 export async function ensureImageCached(id: string): Promise<string | undefined> {
   if (imageCache.has(id)) return imageCache.get(id)
 
+  if (/^data:image\//i.test(id)) {
+    imageCache.set(id, id)
+    return id
+  }
+
   if (/^https?:\/\//i.test(id)) {
     // 远程图片直接走 URL，让浏览器原生缓存生效，避免每次刷新都 fetch+blob 一遍。
     imageCache.set(id, id)
     return id
   }
 
-  const rec = await getImage(id)
-  if (rec) {
-    imageCache.set(id, rec.dataUrl)
-    return rec.dataUrl
+  const fromInput = useStore.getState().inputImages.find((img) => img.id === id)?.dataUrl
+  if (fromInput) {
+    imageCache.set(id, fromInput)
+    return fromInput
   }
+
   return undefined
+}
+
+async function storeImageInMemory(
+  dataUrl: string,
+  _source: NonNullable<StoredImage['source']> = 'upload',
+): Promise<string> {
+  const id = await hashDataUrl(dataUrl)
+  imageCache.set(id, dataUrl)
+  return id
 }
 
 function orderImagesWithMaskFirst(images: InputImage[], maskTargetImageId: string | null | undefined) {
@@ -366,8 +370,10 @@ export function showCodexCliPrompt(force = false, reason = '接口返回的提�
 }
 
 function normalizeParamsForSettings(params: TaskParams, settings: AppSettings): TaskParams {
+  const normalizedAspectRatio = normalizeAspectRatioInput(params.aspectRatio)
   return {
     ...params,
+    aspectRatio: normalizedAspectRatio ?? (DEFAULT_PARAMS.aspectRatio || '1:1'),
     size: normalizeImageSize(params.size) || DEFAULT_PARAMS.size,
     quality: settings.codexCli ? DEFAULT_PARAMS.quality : params.quality,
   }
@@ -410,8 +416,10 @@ function toLocalTask(record: CreationRecord, settings: AppSettings): TaskRecord 
   return {
     id: taskId,
     prompt: record.prompt?.trim() || '',
+    model: record.model?.trim() || undefined,
     params: {
       ...DEFAULT_PARAMS,
+      aspectRatio: buildAspectRatio(size),
       size,
       quality: normalizeQuality(record.quality),
       output_format: normalizeFormat(undefined),
@@ -447,9 +455,36 @@ function buildAspectRatio(size: string): string {
   return simplify(Number(match[1]), Number(match[2]))
 }
 
+function normalizeAspectRatioInput(value: string | undefined): string | null {
+  if (!value) return null
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*[:xX×]\s*(\d+(?:\.\d+)?)$/)
+  if (!match) return null
+
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null
+  }
+
+  return `${width}:${height}`
+}
+
 function buildImageSizeTier(size: string): '1K' | '2K' | '4K' {
-  const match = size.match(/^\s*(\d+)\s*[xX×]\s*(\d+)\s*$/)
+  const normalized = normalizeImageSize(size).trim().replace(/[X×]/g, 'x')
+  const match = normalized.match(/^(\d+)x(\d+)$/)
   if (!match) return '1K'
+
+  const ratio = buildAspectRatio(normalized)
+  const tiers: Array<'1K' | '2K' | '4K'> = ['1K', '2K', '4K']
+  for (const tier of tiers) {
+    const tierSize = calculateImageSize(tier, ratio)
+    if (!tierSize) continue
+    if (normalizeImageSize(tierSize).trim().replace(/[X×]/g, 'x') === normalized) {
+      return tier
+    }
+  }
+
+  // Fallback for non-preset custom sizes.
   const width = Number(match[1])
   const height = Number(match[2])
   const maxEdge = Math.max(width, height)
@@ -478,34 +513,9 @@ function normalizeBackendOutputFormat(value: TaskParams['output_format']): 'jpg'
   return 'png'
 }
 
-function isOpenAiProvider(modelKey: string, manufacturer: string | null | undefined): boolean {
-  const provider = (manufacturer || '').trim().toLowerCase()
-  if (provider.includes('openai')) return true
-  const normalizedModel = modelKey.trim().toLowerCase()
-  return normalizedModel.includes('gpt-image')
-}
-
 function isGptImage15Model(modelKey: string): boolean {
   const normalized = modelKey.trim().toLowerCase()
   return normalized === 'gpt-image-1.5' || normalized === 'gpt-image/1.5'
-}
-
-function resolveGenerationModelByInputMode(
-  modelKey: string,
-  manufacturer: string | null | undefined,
-  isImageToImage: boolean,
-): string {
-  if (!isOpenAiProvider(modelKey, manufacturer)) return modelKey
-  const normalized = modelKey.trim().toLowerCase()
-
-  if (normalized === 'gpt-image-2') {
-    return isImageToImage ? 'gpt-image-2-image-to-image' : 'gpt-image-2-text-to-image'
-  }
-  if (normalized === 'gpt-image-1.5' || normalized === 'gpt-image/1.5') {
-    return isImageToImage ? 'gpt-image/1.5-image-to-image' : 'gpt-image/1.5-text-to-image'
-  }
-
-  return modelKey
 }
 
 async function dataUrlToFile(dataUrl: string, fileName: string): Promise<File> {
@@ -886,9 +896,6 @@ export async function refreshMyCreations(options: { silent?: boolean } = {}) {
     myCreationsPage = 1
     myCreationsTotalPages = Math.max(pageData?.pagination?.totalPages ?? 1, 1)
     state.setTasks(tasks)
-    for (const task of tasks) {
-      void putTask(task)
-    }
     return tasks
   } catch (error) {
     if (isUnauthorizedError(error)) {
@@ -921,9 +928,6 @@ export async function loadMoreMyCreations(options: { silent?: boolean } = {}) {
     if (appendTasks.length > 0) {
       const merged = [...state.tasks, ...appendTasks]
       state.setTasks(merged)
-      for (const task of appendTasks) {
-        void putTask(task)
-      }
     }
     myCreationsPage = nextPage
     myCreationsTotalPages = Math.max(pageData?.pagination?.totalPages ?? myCreationsTotalPages, myCreationsTotalPages, 1)
@@ -982,33 +986,14 @@ export function logout() {
   state.clearSelection()
 }
 
-/** 初始化：从 IndexedDB 加载任务和图片缓存，清理孤立图片 */
+/** 初始化：任务数据以服务端返回为准，图片仅保留内存缓存 */
 export async function initStore() {
   const state = useStore.getState()
   const normalizedBaseUrl = normalizeBackendBaseUrl(state.settings.baseUrl)
   if (normalizedBaseUrl !== state.settings.baseUrl) {
     state.setSettings({ baseUrl: normalizedBaseUrl })
   }
-  const localTasks = await getAllTasks()
-  state.setTasks(localTasks)
-
-  // 收集所有任务引用的图片 id
-  const referencedIds = new Set<string>()
-  for (const t of localTasks) {
-    for (const id of t.inputImageIds || []) referencedIds.add(id)
-    if (t.maskImageId) referencedIds.add(t.maskImageId)
-    for (const id of t.outputImages || []) referencedIds.add(id)
-  }
-
-  // 预加载所有图片到缓存，同时清理孤立图片
-  const images = await getAllImages()
-  for (const img of images) {
-    if (referencedIds.has(img.id)) {
-      imageCache.set(img.id, img.dataUrl)
-    } else {
-      await deleteImage(img.id)
-    }
-  }
+  state.setTasks([])
 
   await refreshModels({ silent: true })
   if (state.token) {
@@ -1035,7 +1020,6 @@ export async function initStore() {
           elapsed: null,
         }
         latestState.setTasks([resumeTask, ...latestState.tasks])
-        await putTask(resumeTask)
       }
       if (resumeTask.status === 'running') {
         void executeTask(activeTaskMeta.localTaskId, activeTaskMeta)
@@ -1084,8 +1068,7 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
         })
         return
       }
-      maskImageId = await storeImage(maskDraft.maskDataUrl, 'mask')
-      imageCache.set(maskImageId, maskDraft.maskDataUrl)
+      maskImageId = await storeImageInMemory(maskDraft.maskDataUrl, 'mask')
       maskTargetImageId = maskDraft.targetImageId
     } catch (err) {
       if (!inputImages.some((img) => img.id === maskDraft.targetImageId)) {
@@ -1096,20 +1079,52 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
     }
   }
 
-  // 持久化输入图片到 IndexedDB（此前只在内存缓存中）
+  // 统一把当前输入图放进内存缓存，便于后续上传与复用
   for (const img of orderedInputImages) {
-    await storeImage(img.dataUrl)
+    await storeImageInMemory(img.dataUrl, 'upload')
   }
 
   const normalizedParams = normalizeParamsForSettings(params, settings)
-  if (normalizedParams.size !== params.size || normalizedParams.quality !== params.quality) {
-    useStore.getState().setParams({ size: normalizedParams.size, quality: normalizedParams.quality })
+  if (
+    normalizedParams.aspectRatio !== params.aspectRatio ||
+    normalizedParams.size !== params.size ||
+    normalizedParams.quality !== params.quality
+  ) {
+    useStore.getState().setParams({
+      aspectRatio: normalizedParams.aspectRatio,
+      size: normalizedParams.size,
+      quality: normalizedParams.quality,
+    })
   }
 
   const taskId = genId()
+  const model = settings.model.trim()
+  const modelConfig = useStore.getState().models.find((item) => item.model_key === model)
+  const requestSize = resolveRequestSize(normalizedParams.size)
+  const requestImageSizeTier = buildImageSizeTier(requestSize)
+  const matchedSkuBySize = modelConfig?.skus?.find((sku) => {
+    return sku.image_size?.trim().toUpperCase() === requestImageSizeTier
+  })
+  const defaultSku = modelConfig?.skus?.find((sku) => sku.is_default === 1)
+  const selectedSku = matchedSkuBySize ?? defaultSku
+  const unitConsumePoints =
+    typeof selectedSku?.unit_consume_points === 'number'
+      ? selectedSku.unit_consume_points
+      : typeof selectedSku?.consume_points === 'number'
+      ? selectedSku.consume_points
+      : typeof modelConfig?.unit_consume_points === 'number'
+      ? modelConfig.unit_consume_points
+      : typeof modelConfig?.consume_points === 'number'
+      ? modelConfig.consume_points
+      : null
   const task: TaskRecord = {
     id: taskId,
     prompt: prompt.trim(),
+    model,
+    skuId: selectedSku?.id ?? null,
+    skuCode: selectedSku?.sku_code ?? modelConfig?.default_sku_code ?? null,
+    unitConsumePoints,
+    consumePoints: unitConsumePoints,
     params: normalizedParams,
     inputImageIds: orderedInputImages.map((i) => i.id),
     maskTargetImageId,
@@ -1124,7 +1139,6 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
 
   const latestTasks = useStore.getState().tasks
   useStore.getState().setTasks([task, ...latestTasks])
-  await putTask(task)
 
   // 异步调用 API
   void executeTask(taskId)
@@ -1173,13 +1187,24 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
       }
 
       const isImageToImage = uploadedImageUrls.length > 0
+      const uploadedImageUrlsWithBase = uploadedImageUrls.map((url) => resolveAssetUrl(settings, url) || url)
       const model = settings.model.trim()
       const modelConfig = state.models.find((item) => item.model_key === model)
-      const defaultSkuId = modelConfig?.skus?.find((sku) => sku.is_default === 1)?.id
-      const defaultSkuCode = modelConfig?.default_sku_code || ''
-      const requestModel = resolveGenerationModelByInputMode(model, modelConfig?.manufacturer, isImageToImage)
       const requestSize = resolveRequestSize(task.params.size)
-      const requestAspectRatio = buildAspectRatio(requestSize)
+      const requestImageSizeTier = buildImageSizeTier(requestSize)
+      const matchedSkuBySize = modelConfig?.skus?.find((sku) => {
+        return sku.image_size?.trim().toUpperCase() === requestImageSizeTier
+      })
+      const defaultSku = modelConfig?.skus?.find((sku) => sku.is_default === 1)
+      const requestSkuByTaskId = task.skuId != null
+        ? modelConfig?.skus?.find((sku) => sku.id === task.skuId)
+        : undefined
+      const requestSkuByTaskCode = task.skuCode
+        ? modelConfig?.skus?.find((sku) => sku.sku_code === task.skuCode)
+        : undefined
+      const requestSku = requestSkuByTaskId ?? requestSkuByTaskCode ?? matchedSkuBySize ?? defaultSku
+      const requestSkuCode = requestSku?.sku_code || task.skuCode || modelConfig?.default_sku_code || ''
+      const requestAspectRatio = normalizeAspectRatioInput(task.params.aspectRatio) ?? (DEFAULT_PARAMS.aspectRatio || '1:1')
       const requestQuality = normalizeBackendQuality(task.params.quality)
       const requestIdempotencyKey = `${task.id}-${Date.now()}`
       const requiresSizeParam = isGptImage15Model(model)
@@ -1189,22 +1214,24 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
             model,
             prompt: task.prompt,
             aspectRatio: requestAspectRatio,
-            imageSize: buildImageSizeTier(requestSize),
+            imageSize: requestImageSizeTier,
             outputFormat: normalizeBackendOutputFormat(task.params.output_format),
-            skuCode: defaultSkuCode || undefined,
-            imageUrl: isImageToImage ? uploadedImageUrls[0] : undefined,
-            imageUrls: isImageToImage ? uploadedImageUrls : undefined,
+            skuCode: requestSkuCode || undefined,
+            imageUrl: isImageToImage ? uploadedImageUrlsWithBase[0] : undefined,
+            imageUrls: isImageToImage ? uploadedImageUrlsWithBase : undefined,
             idempotencyKey: requestIdempotencyKey,
-            skuId: defaultSkuId,
+            skuId: requestSku?.id,
           })
         : isImageToImage
         ? await createImageToImage(settings, token, {
             prompt: task.prompt,
             aspectRatio: requestAspectRatio,
-            model: requestModel,
-            billingModelKey: model,
-            skuCode: defaultSkuCode || undefined,
-            imageUrl: uploadedImageUrls,
+            imageSize: requestImageSizeTier,
+            model,
+            skuId: requestSku?.id,
+            skuCode: requestSkuCode || undefined,
+            outputFormat: normalizeBackendOutputFormat(task.params.output_format),
+            imageUrl: uploadedImageUrlsWithBase,
             quality: requestQuality,
             style: 'vivid',
             uploadToCos: true,
@@ -1214,9 +1241,11 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
         : await createTextToImage(settings, token, {
             prompt: task.prompt,
             aspectRatio: requestAspectRatio,
-            model: requestModel,
-            billingModelKey: model,
-            skuCode: defaultSkuCode || undefined,
+            imageSize: requestImageSizeTier,
+            model,
+            skuId: requestSku?.id,
+            skuCode: requestSkuCode || undefined,
+            outputFormat: normalizeBackendOutputFormat(task.params.output_format),
             n: 1,
             quality: requestQuality,
             style: 'vivid',
@@ -1277,9 +1306,6 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
     useStore.getState().setDetailTaskId(taskId)
   }
 
-  for (const imgId of task.inputImageIds) {
-    imageCache.delete(imgId)
-  }
 }
 
 export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
@@ -1288,8 +1314,6 @@ export function updateTaskInStore(taskId: string, patch: Partial<TaskRecord>) {
     t.id === taskId ? { ...t, ...patch } : t,
   )
   setTasks(updated)
-  const task = updated.find((t) => t.id === taskId)
-  if (task) putTask(task)
 }
 
 /** 重试失败的任务：创建新任务并执行 */
@@ -1314,7 +1338,6 @@ export async function retryTask(task: TaskRecord) {
 
   const latestTasks = useStore.getState().tasks
   useStore.getState().setTasks([newTask, ...latestTasks])
-  await putTask(newTask)
 
   executeTask(taskId)
 }
@@ -1379,7 +1402,7 @@ export async function editOutputs(task: TaskRecord) {
 
 /** 删除多条任务 */
 export async function removeMultipleTasks(taskIds: string[]) {
-  const { tasks, setTasks, inputImages, showToast, clearSelection, selectedTaskIds } = useStore.getState()
+  const { tasks, setTasks, inputImages, showToast, selectedTaskIds } = useStore.getState()
   
   if (!taskIds.length) return
 
@@ -1397,9 +1420,6 @@ export async function removeMultipleTasks(taskIds: string[]) {
   }
 
   setTasks(remaining)
-  for (const id of taskIds) {
-    await dbDeleteTask(id)
-  }
 
   // 找出其他任务仍引用的图片
   const stillUsed = new Set<string>()
@@ -1413,7 +1433,6 @@ export async function removeMultipleTasks(taskIds: string[]) {
   // 删除孤立图片
   for (const imgId of deletedImageIds) {
     if (!stillUsed.has(imgId)) {
-      await deleteImage(imgId)
       imageCache.delete(imgId)
     }
   }
@@ -1441,7 +1460,6 @@ export async function removeTask(task: TaskRecord) {
   // 从列表移除
   const remaining = tasks.filter((t) => t.id !== task.id)
   setTasks(remaining)
-  await dbDeleteTask(task.id)
 
   // 找出其他任务仍引用的图片
   const stillUsed = new Set<string>()
@@ -1455,7 +1473,6 @@ export async function removeTask(task: TaskRecord) {
   // 删除孤立图片
   for (const imgId of taskImageIds) {
     if (!stillUsed.has(imgId)) {
-      await deleteImage(imgId)
       imageCache.delete(imgId)
     }
   }
@@ -1465,8 +1482,6 @@ export async function removeTask(task: TaskRecord) {
 
 /** 清空所有数据（含配置重置） */
 export async function clearAllData() {
-  await dbClearTasks()
-  await clearImages()
   imageCache.clear()
   const { setTasks, clearInputImages, clearMaskDraft, setSettings, setParams, showToast } = useStore.getState()
   setTasks([])
@@ -1502,9 +1517,7 @@ function bytesToDataUrl(bytes: Uint8Array, filePath: string): string {
 /** 导出数据为 ZIP */
 export async function exportData() {
   try {
-    const tasks = await getAllTasks()
-    const images = await getAllImages()
-    const { settings } = useStore.getState()
+    const { settings, tasks } = useStore.getState()
     const exportedAt = Date.now()
     const imageCreatedAtFallback = new Map<string, number>()
 
@@ -1524,12 +1537,25 @@ export async function exportData() {
     const imageFiles: ExportData['imageFiles'] = {}
     const zipFiles: Record<string, Uint8Array | [Uint8Array, { mtime: Date }]> = {}
 
-    for (const img of images) {
+    const exportedImageIds = new Set<string>()
+    for (const id of imageCreatedAtFallback.keys()) {
+      const dataUrl = imageCache.get(id)
+      if (!dataUrl?.startsWith('data:image/')) continue
+      const { ext, bytes } = dataUrlToBytes(dataUrl)
+      const path = `images/${id}.${ext}`
+      const createdAt = imageCreatedAtFallback.get(id) ?? exportedAt
+      imageFiles[id] = { path, createdAt, source: 'upload' }
+      zipFiles[path] = [bytes, { mtime: new Date(createdAt) }]
+      exportedImageIds.add(id)
+    }
+
+    for (const img of useStore.getState().inputImages) {
+      if (exportedImageIds.has(img.id)) continue
+      if (!img.dataUrl?.startsWith('data:image/')) continue
       const { ext, bytes } = dataUrlToBytes(img.dataUrl)
       const path = `images/${img.id}.${ext}`
-      const createdAt = img.createdAt ?? imageCreatedAtFallback.get(img.id) ?? exportedAt
-      imageFiles[img.id] = { path, createdAt, source: img.source }
-      zipFiles[path] = [bytes, { mtime: new Date(createdAt) }]
+      imageFiles[img.id] = { path, createdAt: exportedAt, source: 'upload' }
+      zipFiles[path] = [bytes, { mtime: new Date(exportedAt) }]
     }
 
     const manifest: ExportData = {
@@ -1578,20 +1604,14 @@ export async function importData(file: File) {
       const bytes = unzipped[info.path]
       if (!bytes) continue
       const dataUrl = bytesToDataUrl(bytes, info.path)
-      await putImage({ id, dataUrl, createdAt: info.createdAt, source: info.source })
       imageCache.set(id, dataUrl)
-    }
-
-    for (const task of data.tasks) {
-      await putTask(task)
     }
 
     if (data.settings) {
       useStore.getState().setSettings(data.settings)
     }
 
-    const tasks = await getAllTasks()
-    useStore.getState().setTasks(tasks)
+    useStore.getState().setTasks(data.tasks)
     useStore
       .getState()
       .showToast(`已导入 ${data.tasks.length} 条记录`, 'success')
@@ -1605,13 +1625,30 @@ export async function importData(file: File) {
   }
 }
 
-/** 添加图片到输入（文件上传）—— 仅放入内存缓存，不写 IndexedDB */
+/** 添加图片到输入（文件上传）—— 仅放入内存缓存 */
 export async function addImageFromFile(file: File): Promise<void> {
   if (!file.type.startsWith('image/')) return
   const dataUrl = await fileToDataUrl(file)
   const id = await hashDataUrl(dataUrl)
   imageCache.set(id, dataUrl)
   useStore.getState().addInputImage({ id, dataUrl })
+
+  const { token, settings } = useStore.getState()
+  if (!token) return
+
+  try {
+    const uploaded = await uploadImage(settings, token, file)
+    if (uploaded?.url) {
+      useStore.getState().updateInputImage(id, { remoteUrl: uploaded.url })
+    }
+  } catch (error) {
+    useStore
+      .getState()
+      .showToast(
+        `图片上传失败：${error instanceof Error ? error.message : String(error)}`,
+        'error',
+      )
+  }
 }
 
 /** 添加图片到输入（右键菜单）—— 支持 data/blob/http URL */

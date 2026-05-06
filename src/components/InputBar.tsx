@@ -1,9 +1,11 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { Coins } from 'lucide-react'
 import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL } from '../types'
-import { calculateImageSize } from '../lib/size'
+import { calculateImageSize, normalizeImageSize, type SizeTier } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { resolveAssetUrl } from '../lib/backendApi'
 import Select from './Select'
 import ModelPicker from './ModelPicker'
 import ViewportTooltip from './ViewportTooltip'
@@ -19,7 +21,7 @@ function ButtonTooltip({ visible, text }: { visible: boolean; text: string }) {
 
 /** API 支持的最大参考图数量 */
 const API_MAX_IMAGES = 16
-const RATIO_OPTIONS = [
+const DEFAULT_RATIO_OPTIONS = [
   { label: '1:1', value: '1:1' },
   { label: '3:2', value: '3:2' },
   { label: '2:3', value: '2:3' },
@@ -29,13 +31,49 @@ const RATIO_OPTIONS = [
   { label: '3:4', value: '3:4' },
   { label: '21:9', value: '21:9' },
 ] as const
-const RESOLUTION_OPTIONS = [
+const DEFAULT_RESOLUTION_OPTIONS = [
   { label: '1K', value: '1K' },
   { label: '2K', value: '2K' },
   { label: '4K', value: '4K' },
 ] as const
 
-type ResolutionTier = (typeof RESOLUTION_OPTIONS)[number]['value']
+const KNOWN_SIZE_TIERS: SizeTier[] = ['1K', '2K', '4K']
+const RATIO_PATTERN = /^\s*\d+(?:\.\d+)?\s*[:xX×]\s*\d+(?:\.\d+)?\s*$/
+
+function isKnownSizeTier(value: string): value is SizeTier {
+  return KNOWN_SIZE_TIERS.includes(value as SizeTier)
+}
+
+function normalizeRatioOptions(aspectRatios: string[] | undefined) {
+  if (!aspectRatios || aspectRatios.length === 0) {
+    return DEFAULT_RATIO_OPTIONS.map((item) => ({ label: item.label, value: item.value }))
+  }
+
+  const seen = new Set<string>()
+  const options = aspectRatios
+    .map((item) => item.trim())
+    .filter((item) => {
+      if (!RATIO_PATTERN.test(item)) return false
+      if (seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+    .map((item) => ({ label: item, value: item }))
+
+  return options.length > 0
+    ? options
+    : DEFAULT_RATIO_OPTIONS.map((item) => ({ label: item.label, value: item.value }))
+}
+
+function normalizeAspectRatioValue(value: string): string | null {
+  const raw = value.trim()
+  if (!RATIO_PATTERN.test(raw)) return null
+  const parts = raw.split(/[:xX×]/).map((item) => Number(item.trim()))
+  const width = parts[0]
+  const height = parts[1]
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null
+  return `${width}:${height}`
+}
 
 function parseSize(size: string) {
   const match = size.match(/^\s*(\d+)\s*[xX×]\s*(\d+)\s*$/)
@@ -50,14 +88,14 @@ function parseSize(size: string) {
   return { width, height }
 }
 
-function pickClosestRatio(size: string): (typeof RATIO_OPTIONS)[number]['value'] {
+function pickClosestRatio(size: string, ratioOptions: Array<{ value: string }>): string {
   const parsed = parseSize(size)
-  if (!parsed) return '1:1'
+  if (!parsed) return ratioOptions[0]?.value ?? '1:1'
 
   const actualRatio = parsed.width / parsed.height
-  let closest: (typeof RATIO_OPTIONS)[number]['value'] = '1:1'
+  let closest = ratioOptions[0]?.value ?? '1:1'
   let smallestDelta = Number.POSITIVE_INFINITY
-  for (const item of RATIO_OPTIONS) {
+  for (const item of ratioOptions) {
     const [width, height] = item.value.split(':').map(Number)
     const delta = Math.abs(actualRatio - width / height)
     if (delta < smallestDelta) {
@@ -69,9 +107,50 @@ function pickClosestRatio(size: string): (typeof RATIO_OPTIONS)[number]['value']
   return closest
 }
 
-function pickResolutionTier(size: string): ResolutionTier {
+function pickResolutionTier(size: string): SizeTier {
   const parsed = parseSize(size)
   if (!parsed) return '1K'
+
+  const maxEdge = Math.max(parsed.width, parsed.height)
+  if (maxEdge >= 3000) return '4K'
+  if (maxEdge >= 1600) return '2K'
+  return '1K'
+}
+
+function toNormalizedSize(size: string): string | null {
+  const parsed = parseSize(size)
+  return parsed ? `${parsed.width}x${parsed.height}` : null
+}
+
+function pickResolutionValue(size: string, ratio: string, resolutionValues: string[]): string {
+  const normalizedSize = toNormalizedSize(size)
+  if (normalizedSize) {
+    for (const value of resolutionValues) {
+      const normalizedValue = value.trim()
+      const directSize = toNormalizedSize(normalizedValue)
+      if (directSize === normalizedSize) return normalizedValue
+      if (isKnownSizeTier(normalizedValue)) {
+        const presetSize = calculateImageSize(normalizedValue, ratio)
+        if (presetSize === normalizedSize) return normalizedValue
+      }
+    }
+  }
+
+  const preferredTier = pickResolutionTier(size)
+  if (resolutionValues.includes(preferredTier)) return preferredTier
+  return resolutionValues[0] ?? '1K'
+}
+
+function buildImageSizeTier(size: string, ratio: string): SizeTier {
+  const normalizedSize = normalizeImageSize(size).trim().replace(/[X×]/g, 'x')
+  const parsed = parseSize(normalizedSize)
+  if (!parsed) return '1K'
+
+  for (const tier of KNOWN_SIZE_TIERS) {
+    const tierSize = calculateImageSize(tier, ratio)
+    if (!tierSize) continue
+    if (normalizeImageSize(tierSize).trim().replace(/[X×]/g, 'x') === normalizedSize) return tier
+  }
 
   const maxEdge = Math.max(parsed.width, parsed.height)
   if (maxEdge >= 3000) return '4K'
@@ -169,7 +248,6 @@ export default function InputBar() {
   }, [selectedTaskIds, setConfirmDialog])
   const maskDraft = useStore((s) => s.maskDraft)
   const clearMaskDraft = useStore((s) => s.clearMaskDraft)
-  const setMaskEditorImageId = useStore((s) => s.setMaskEditorImageId)
   const moveInputImage = useStore((s) => s.moveInputImage)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -181,7 +259,6 @@ export default function InputBar() {
   const [isDragging, setIsDragging] = useState(false)
   const [submitHover, setSubmitHover] = useState(false)
   const [attachHover, setAttachHover] = useState(false)
-  const [qualityHintVisible, setQualityHintVisible] = useState(false)
   const [imageHintId, setImageHintId] = useState<string | null>(null)
   const [mobileCollapsed, setMobileCollapsed] = useState(false)
   const [maskPreviewUrl, setMaskPreviewUrl] = useState('')
@@ -195,8 +272,6 @@ export default function InputBar() {
   const imageDragOverIndexRef = useRef<number | null>(null)
   const imageDragPreviewRef = useRef<HTMLElement | null>(null)
   const suppressImageClickRef = useRef(false)
-  const maskConflictNoticeShownRef = useRef(false)
-  const qualityHintTimerRef = useRef<number | null>(null)
   const imageHintTimerRef = useRef<number | null>(null)
   const dragCounter = useRef(0)
   const isMobile = useIsMobile()
@@ -209,8 +284,71 @@ export default function InputBar() {
   const referenceImages = maskTargetImage
     ? inputImages.filter((img) => img.id !== maskTargetImage.id)
     : inputImages
-  const selectedRatio = useMemo(() => pickClosestRatio(params.size), [params.size])
-  const selectedResolution = useMemo(() => pickResolutionTier(params.size), [params.size])
+  const selectedModelConfig = useMemo(
+    () => models.find((item) => item.model_key === settings.model),
+    [models, settings.model],
+  )
+  const ratioOptions = useMemo(
+    () => normalizeRatioOptions(selectedModelConfig?.aspect_ratios),
+    [selectedModelConfig?.aspect_ratios],
+  )
+  const baseResolutionOptions = useMemo(() => {
+    const modelSkus = selectedModelConfig?.skus ?? []
+    const seen = new Set<string>()
+    const options = modelSkus
+      .map((sku) => {
+        const imageSize = sku.image_size?.trim()
+        const value = imageSize || sku.sku_code?.trim()
+        if (!value) return null
+        if (seen.has(value)) return null
+        seen.add(value)
+        return {
+          label: sku.sku_name?.trim() || value,
+          value,
+        }
+      })
+      .filter((item): item is { label: string; value: string } => Boolean(item))
+
+    return options.length > 0
+      ? options
+      : DEFAULT_RESOLUTION_OPTIONS.map((item) => ({ label: item.label, value: item.value }))
+  }, [selectedModelConfig?.skus])
+  const selectedRatio = useMemo(() => {
+    const preferred = normalizeAspectRatioValue(params.aspectRatio || '')
+    if (preferred && ratioOptions.some((item) => item.value === preferred)) {
+      return preferred
+    }
+    return pickClosestRatio(params.size, ratioOptions)
+  }, [params.aspectRatio, params.size, ratioOptions])
+  const resolutionOptions = baseResolutionOptions
+  const selectedResolution = useMemo(
+    () => pickResolutionValue(params.size, selectedRatio, resolutionOptions.map((item) => item.value)),
+    [params.size, selectedRatio, resolutionOptions],
+  )
+  const consumePointInfo = useMemo(() => {
+    const requestImageSizeTier = buildImageSizeTier(params.size, selectedRatio)
+    const matchedSkuBySize = selectedModelConfig?.skus?.find((sku) => {
+      return sku.image_size?.trim().toUpperCase() === requestImageSizeTier
+    })
+    const defaultSku = selectedModelConfig?.skus?.find((sku) => sku.is_default === 1)
+    const selectedSku = matchedSkuBySize ?? defaultSku
+    const points =
+      typeof selectedSku?.unit_consume_points === 'number'
+        ? selectedSku.unit_consume_points
+        : typeof selectedSku?.consume_points === 'number'
+        ? selectedSku.consume_points
+        : typeof selectedModelConfig?.unit_consume_points === 'number'
+        ? selectedModelConfig.unit_consume_points
+        : typeof selectedModelConfig?.consume_points === 'number'
+        ? selectedModelConfig.consume_points
+        : null
+
+    return {
+      points,
+      tier: requestImageSizeTier,
+      skuName: selectedSku?.sku_name?.trim() || requestImageSizeTier,
+    }
+  }, [params.size, selectedModelConfig, selectedRatio])
   const modelFallbackOptions = useMemo(() => {
     const defaults =
       settings.apiMode === 'responses'
@@ -229,15 +367,18 @@ export default function InputBar() {
   }, [params.moderation, settings.apiMode, setParams])
 
   useEffect(() => {
-    if (settings.codexCli && params.quality !== 'auto') {
+    if (params.quality !== 'auto') {
       setParams({ quality: 'auto' })
     }
-  }, [params.quality, settings.codexCli, setParams])
+  }, [params.quality, setParams])
+
+  useEffect(() => {
+    const current = normalizeAspectRatioValue(params.aspectRatio || '')
+    if (current === selectedRatio) return
+    setParams({ aspectRatio: selectedRatio })
+  }, [params.aspectRatio, selectedRatio, setParams])
 
   useEffect(() => () => {
-    if (qualityHintTimerRef.current != null) {
-      window.clearTimeout(qualityHintTimerRef.current)
-    }
     if (imageHintTimerRef.current != null) {
       window.clearTimeout(imageHintTimerRef.current)
     }
@@ -264,36 +405,21 @@ export default function InputBar() {
   }, [maskDraft, maskTargetImage?.id, maskTargetImage?.dataUrl])
 
   const applySizeFromPreset = useCallback(
-    (ratio: string, resolution: ResolutionTier) => {
-      const size = calculateImageSize(resolution, ratio)
-      if (size) setParams({ size })
+    (ratio: string, resolutionValue: string) => {
+      const normalized = resolutionValue.trim()
+      if (isKnownSizeTier(normalized)) {
+        const size = calculateImageSize(normalized, ratio)
+        if (size) setParams({ size })
+        return
+      }
+
+      const directSize = parseSize(normalized)
+      if (directSize) {
+        setParams({ size: `${directSize.width}x${directSize.height}` })
+      }
     },
     [setParams],
   )
-
-  const showQualityHint = () => {
-    if (settings.codexCli) setQualityHintVisible(true)
-  }
-
-  const hideQualityHint = () => {
-    setQualityHintVisible(false)
-    clearQualityHintTimer()
-  }
-
-  const clearQualityHintTimer = () => {
-    if (qualityHintTimerRef.current != null) {
-      window.clearTimeout(qualityHintTimerRef.current)
-      qualityHintTimerRef.current = null
-    }
-  }
-
-  const startQualityHintTouch = () => {
-    if (!settings.codexCli) return
-    qualityHintTimerRef.current = window.setTimeout(() => {
-      setQualityHintVisible(true)
-      qualityHintTimerRef.current = null
-    }, 450)
-  }
 
   const clearImageHintTimer = () => {
     if (imageHintTimerRef.current != null) {
@@ -589,13 +715,13 @@ export default function InputBar() {
 
   const renderImageThumb = (img: (typeof inputImages)[number], idx: number) => {
     const isMaskTarget = maskDraft?.targetImageId === img.id
-    const canEdit = !maskTargetImage || isMaskTarget
     const imageHintText = isMaskTarget
       ? '遮罩图必须为第一张图'
       : maskTargetImage
         ? '只能有一张遮罩图'
         : ''
-    const displaySrc = isMaskTarget && maskPreviewUrl ? maskPreviewUrl : img.dataUrl
+    const remoteDisplaySrc = img.remoteUrl ? resolveAssetUrl(settings, img.remoteUrl) : ''
+    const displaySrc = isMaskTarget && maskPreviewUrl ? maskPreviewUrl : (remoteDisplaySrc || img.dataUrl)
     const isImageDragging = imageDragIndex === idx
     const isLast = idx === inputImages.length - 1
     const showDropBefore = imageDragOverIndex === idx && imageDragIndex !== idx
@@ -723,14 +849,6 @@ export default function InputBar() {
           }`}
           onClick={() => {
             if (suppressImageClickRef.current) return
-            if (isMaskTarget) {
-              setMaskEditorImageId(img.id)
-              return
-            }
-            if (isMobile && maskTargetImage && !maskConflictNoticeShownRef.current) {
-              maskConflictNoticeShownRef.current = true
-              showToast('只能有一张遮罩图', 'info')
-            }
             setLightboxImageId(img.id, inputImages.map((i) => i.id))
           }}
         >
@@ -743,20 +861,6 @@ export default function InputBar() {
             <span className="absolute left-1 top-1 rounded bg-blue-500/90 px-1.5 py-0.5 text-[8px] leading-none text-white font-bold tracking-wider backdrop-blur-sm z-10 pointer-events-none">
               MASK
             </span>
-          )}
-          {canEdit && (
-            <button 
-              className="absolute inset-0 w-full h-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer z-20 focus:outline-none border-none"
-              onClick={(e) => {
-                e.stopPropagation()
-                setMaskEditorImageId(img.id)
-              }}
-              title={isMaskTarget ? "编辑遮罩" : "添加遮罩"}
-            >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            </button>
           )}
         </div>
         {!isMaskTarget && (
@@ -833,8 +937,12 @@ export default function InputBar() {
         <span className="text-gray-400 dark:text-gray-500 ml-1">比例</span>
         <Select
           value={selectedRatio}
-          onChange={(val) => applySizeFromPreset(String(val), selectedResolution)}
-          options={RATIO_OPTIONS.map((item) => ({ label: item.label, value: item.value }))}
+          onChange={(val) => {
+            const ratio = String(val)
+            setParams({ aspectRatio: ratio })
+            applySizeFromPreset(ratio, selectedResolution)
+          }}
+          options={ratioOptions}
           className={selectClass}
         />
       </label>
@@ -842,40 +950,9 @@ export default function InputBar() {
         <span className="text-gray-400 dark:text-gray-500 ml-1">分辨率</span>
         <Select
           value={selectedResolution}
-          onChange={(val) => applySizeFromPreset(selectedRatio, val as ResolutionTier)}
-          options={RESOLUTION_OPTIONS.map((item) => ({ label: item.label, value: item.value }))}
+          onChange={(val) => applySizeFromPreset(selectedRatio, String(val))}
+          options={resolutionOptions}
           className={selectClass}
-        />
-      </label>
-      <label
-        className="relative flex flex-col gap-0.5"
-        onMouseEnter={showQualityHint}
-        onMouseLeave={hideQualityHint}
-        onTouchStart={startQualityHintTouch}
-        onTouchEnd={clearQualityHintTimer}
-        onTouchCancel={hideQualityHint}
-        onClick={showQualityHint}
-      >
-        <span className="text-gray-400 dark:text-gray-500 ml-1">质量</span>
-        <Select
-          value={settings.codexCli ? 'auto' : params.quality}
-          onChange={(val) => {
-            if (!settings.codexCli) setParams({ quality: val as any })
-          }}
-          options={[
-            { label: 'auto', value: 'auto' },
-            { label: 'low', value: 'low' },
-            { label: 'medium', value: 'medium' },
-            { label: 'high', value: 'high' },
-          ]}
-          disabled={settings.codexCli}
-          className={settings.codexCli
-            ? 'px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-white/[0.08] bg-gray-100/50 dark:bg-white/[0.05] opacity-50 cursor-not-allowed text-xs transition-all duration-200 shadow-sm'
-            : selectClass}
-        />
-        <ButtonTooltip
-          visible={settings.codexCli && qualityHintVisible}
-          text="Codex CLI 不支持质量参数"
         />
       </label>
       <label className="flex flex-col gap-0.5">
@@ -891,6 +968,29 @@ export default function InputBar() {
           className={selectClass}
         />
       </label>
+    </div>
+  )
+
+  const renderConsumeBadge = (compact = false) => (
+    <div
+      className={[
+        'inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 shadow-sm shadow-amber-900/5 ring-1 ring-white/60 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-white/[0.04]',
+        compact ? 'px-2.5 py-2 text-xs' : 'px-3 py-2 text-sm',
+      ].join(' ')}
+      title={
+        consumePointInfo.points != null
+          ? `${consumePointInfo.skuName} 预计消耗 ${consumePointInfo.points} 积分`
+          : '当前模型暂未返回积分消耗'
+      }
+    >
+      <Coins className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} strokeWidth={1.9} aria-hidden="true" />
+      <span className="whitespace-nowrap font-semibold">
+        {consumePointInfo.points != null
+          ? compact
+            ? `${consumePointInfo.points} 积分`
+            : `消耗 ${consumePointInfo.points} 积分`
+          : '积分待确认'}
+      </span>
     </div>
   )
 
@@ -1036,7 +1136,8 @@ export default function InputBar() {
             <div className="hidden sm:flex items-end justify-between gap-3">
               {renderParams('grid-cols-6')}
 
-              <div className="flex gap-2 flex-shrink-0 mb-0.5">
+              <div className="flex items-end gap-2 flex-shrink-0 mb-0.5">
+                {renderConsumeBadge()}
                 <div
                   className="relative"
                   onMouseEnter={() => setAttachHover(true)}
@@ -1091,6 +1192,7 @@ export default function InputBar() {
               </div>
 
               <div className="flex items-center gap-2">
+                {renderConsumeBadge(true)}
                 <div
                   className="relative"
                   onMouseEnter={() => setAttachHover(true)}

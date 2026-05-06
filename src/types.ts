@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // ===== 任务参数 =====
 
 export interface TaskParams {
+  aspectRatio?: string
   size: string
   quality: 'auto' | 'low' | 'medium' | 'high'
   output_format: 'png' | 'jpeg' | 'webp'
@@ -41,6 +42,7 @@ export interface TaskParams {
 }
 
 export const DEFAULT_PARAMS: TaskParams = {
+  aspectRatio: '1:1',
   size: 'auto',
   quality: 'auto',
   output_format: 'png',
@@ -52,7 +54,7 @@ export const DEFAULT_PARAMS: TaskParams = {
 // ===== 输入图片（UI 层面） =====
 
 export interface InputImage {
-  /** IndexedDB image store 的 id（SHA-256 hash） */
+  /** 客户端图片 id（通常为 dataUrl 的 SHA-256 hash） */
   id: string
   /** data URL，用于预览 */
   dataUrl: string
@@ -73,6 +75,11 @@ export type TaskStatus = 'running' | 'done' | 'error'
 export interface TaskRecord {
   id: string
   prompt: string
+  model?: string
+  skuId?: number | null
+  skuCode?: string | null
+  unitConsumePoints?: number | null
+  consumePoints?: number | null
   params: TaskParams
   /** API 返回的实际生效参数，用于标记与请求值不一致的情况 */
   actualParams?: Partial<TaskParams>
@@ -96,9 +103,10 @@ export interface TaskRecord {
   elapsed: number | null
   /** 是否收藏 */
   isFavorite?: boolean
+  unit_consume_points?: number | null
 }
 
-// ===== IndexedDB 存储的图片 =====
+// ===== 客户端内存缓存的图片 =====
 
 export interface StoredImage {
   id: string

@@ -8,11 +8,34 @@
 :root {
   --font-ui-sans: 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'Maple Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+  --color-brand-primary: #2563eb;
+  --color-brand-primary-hover: #1d4ed8;
+  --color-brand-ink: #18181b;
+  --color-commerce: #a16207;
+  --color-commerce-ink: #2f2618;
+  --color-commerce-soft: #fef3c7;
+  --surface-panel: rgba(255, 255, 255, 0.72);
+  --surface-panel-strong: rgba(255, 255, 255, 0.92);
+  --surface-border: rgba(24, 24, 27, 0.10);
+  --surface-shadow: 0 18px 48px rgba(24, 24, 27, 0.08);
+  --radius-panel: 1.5rem;
+  --radius-control: 0.75rem;
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.20);
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
   scrollbar-gutter: stable;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-brand-ink: #f4f4f5;
+    --surface-panel: rgba(24, 24, 27, 0.72);
+    --surface-panel-strong: rgba(24, 24, 27, 0.94);
+    --surface-border: rgba(255, 255, 255, 0.10);
+    --surface-shadow: 0 18px 48px rgba(0, 0, 0, 0.30);
+  }
 }
 
 html {
