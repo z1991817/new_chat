@@ -6,12 +6,14 @@ import type { ApiMode } from './types'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
 import TaskGrid from './components/TaskGrid'
+import PromptLibraryGrid from './components/PromptLibraryGrid'
 import HomeSeoContent from './components/HomeSeoContent'
 import InputBar from './components/InputBar'
 import ImageContextMenu from './components/ImageContextMenu'
 
 const ConsumptionPage = lazy(() => import('./components/ConsumptionPage'))
 const RechargePage = lazy(() => import('./components/RechargePage'))
+const CashierPage = lazy(() => import('./components/CashierPage'))
 const DetailModal = lazy(() => import('./components/DetailModal'))
 const Lightbox = lazy(() => import('./components/Lightbox'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
@@ -19,15 +21,19 @@ const ConfirmDialog = lazy(() => import('./components/ConfirmDialog'))
 const Toast = lazy(() => import('./components/Toast'))
 const MaskEditorModal = lazy(() => import('./components/MaskEditorModal'))
 const LoginModal = lazy(() => import('./components/LoginModal'))
+const WelcomeBonusModal = lazy(() => import('./components/WelcomeBonusModal'))
 
 const HOME_PATH = '/'
 const PROMPTS_PATH = '/prompts'
 const CONSUMPTION_PATH = '/consumption'
 const RECHARGE_PATH = '/recharge'
+const CASHIER_PATH = '/cashier'
 
-type AppPath = typeof HOME_PATH | typeof PROMPTS_PATH | typeof CONSUMPTION_PATH | typeof RECHARGE_PATH
+type AppPath = typeof HOME_PATH | typeof PROMPTS_PATH | typeof CONSUMPTION_PATH | typeof RECHARGE_PATH | typeof CASHIER_PATH
+type PromptLibrarySearchField = 'prompt' | 'tag'
 
 function resolveAppPath(pathname: string): AppPath {
+  if (pathname.startsWith(CASHIER_PATH)) return CASHIER_PATH
   if (pathname.startsWith(RECHARGE_PATH)) return RECHARGE_PATH
   if (pathname.startsWith(CONSUMPTION_PATH)) return CONSUMPTION_PATH
   return pathname.startsWith(PROMPTS_PATH) ? PROMPTS_PATH : HOME_PATH
@@ -40,6 +46,7 @@ interface AppProps {
 export default function App({ initialPath }: AppProps) {
   const setSettings = useStore((s) => s.setSettings)
   const loginOpen = useStore((s) => s.loginOpen)
+  const token = useStore((s) => s.token)
   const detailTaskId = useStore((s) => s.detailTaskId)
   const lightboxImageId = useStore((s) => s.lightboxImageId)
   const showSettings = useStore((s) => s.showSettings)
@@ -50,6 +57,8 @@ export default function App({ initialPath }: AppProps) {
   const [currentPath, setCurrentPath] = useState(() =>
     resolveAppPath(initialPath ?? (typeof window !== 'undefined' ? window.location.pathname : HOME_PATH)),
   )
+  const [promptLibrarySearchField, setPromptLibrarySearchField] =
+    useState<PromptLibrarySearchField>('prompt')
 
   useEffect(() => {
     if (initializedRef.current) return
@@ -113,13 +122,21 @@ export default function App({ initialPath }: AppProps) {
     return () => window.removeEventListener('popstate', syncPath)
   }, [])
 
-  const handleNavigate = useCallback((nextPath: AppPath) => {
+  const handleNavigate = useCallback((nextPath: Exclude<AppPath, typeof CASHIER_PATH>) => {
     if (typeof window === 'undefined') return
     const normalizedPath = resolveAppPath(nextPath)
     if (normalizedPath === resolveAppPath(window.location.pathname)) return
     window.history.pushState({}, '', normalizedPath)
     setCurrentPath(normalizedPath)
   }, [])
+
+  if (currentPath === CASHIER_PATH) {
+    return (
+      <Suspense>
+        <CashierPage />
+      </Suspense>
+    )
+  }
 
   return (
     <>
@@ -138,6 +155,15 @@ export default function App({ initialPath }: AppProps) {
             <Suspense>
               <RechargePage />
             </Suspense>
+          ) : currentPath === PROMPTS_PATH ? (
+            <>
+              <SearchBar
+                variant="prompt-library"
+                promptLibrarySearchField={promptLibrarySearchField}
+                onPromptLibrarySearchFieldChange={setPromptLibrarySearchField}
+              />
+              <PromptLibraryGrid searchField={promptLibrarySearchField} />
+            </>
           ) : (
             <>
               <SearchBar />
@@ -148,6 +174,11 @@ export default function App({ initialPath }: AppProps) {
         </div>
       </main>
       {currentPath === HOME_PATH && <InputBar />}
+      {currentPath === HOME_PATH && !token && (
+        <Suspense>
+          <WelcomeBonusModal open />
+        </Suspense>
+      )}
       {detailTaskId && (
         <Suspense>
           <DetailModal />

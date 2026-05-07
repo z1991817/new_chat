@@ -1,6 +1,6 @@
 # GPT Image Playground
 
-基于 OpenAI 图像生成接口的图片生成与编辑工具。提供简洁的 Web UI，支持文本生成图片、参考图编辑、可视化参数调节、历史记录管理与本地数据导入导出。
+基于 Vite SSR 框架和 OpenAI 图像生成接口的图片生成与编辑工具。提供简洁的 Web UI，支持文本生成图片、参考图编辑、可视化参数调节、历史记录管理与本地数据导入导出，生产环境推荐使用 Docker 部署。
 
 
 > 如有调用非本地的 HTTP API 的需求，请使用 GitHub Pages 版本或自行部署，因为 `.dev` 域名要求页面本身及其加载的资源（的来源）均为 HTTPS。
@@ -89,10 +89,10 @@ https://cooksleep.github.io/gpt_image_playground
 
 ## 🚀 部署与使用
 
-支持多种部署与使用方式，推荐使用 Vercel 一键部署。
+支持多种部署与使用方式，推荐使用 Docker 部署。项目采用 React + TypeScript + Vite SSR 构建，生产镜像由 Nginx 承载静态产物和可选同源 API 代理。
 
 <details>
-<summary><strong>▲ 方式一：Vercel 一键部署 (推荐)</strong></summary>
+<summary><strong>▲ 方式一：Vercel 一键部署</strong></summary>
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCookSleep%2Fgpt_image_playground&project-name=gpt-image-playground&repository-name=gpt-image-playground)
 
@@ -125,7 +125,7 @@ VITE_DEFAULT_API_URL=https://api.openai.com/v1
 </details>
 
 <details>
-<summary><strong>🐳 方式二：Docker 部署</strong></summary>
+<summary><strong>🐳 方式二：Docker 部署 (推荐)</strong></summary>
 
 项目已将镜像发布至 GitHub Container Registry。你可以通过环境变量 `API_URL` 注入默认的 API 节点，也可以通过 `HOST`、`PORT` 指定容器内 nginx 的监听地址，默认值为 `0.0.0.0:80`。
 
@@ -286,7 +286,8 @@ docker compose up -d
 
 ## 💻 技术栈
 
-- **框架**：[React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **框架**：[React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) + [Vite SSR](https://vite.dev/guide/ssr.html)
+- **部署**：Docker 镜像 + Nginx 静态服务，可选同源 API 代理
 - **构建工具**：[Vite](https://vite.dev/)
 - **样式**：[Tailwind CSS 3](https://tailwindcss.com/)
 - **状态管理**：[Zustand](https://zustand.docs.pmnd.rs/)

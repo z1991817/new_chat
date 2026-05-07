@@ -28,6 +28,7 @@ async function startServer() {
     const serverEntryPath = path.resolve(__dirname, 'dist/server/entry-server.js')
 
     app.use('/assets', express.static(path.join(clientDist, 'assets'), { immutable: true, maxAge: '1y' }))
+    app.use('/fonts', express.static(path.join(clientDist, 'fonts'), { immutable: true, maxAge: '1y' }))
     app.use(express.static(clientDist, { index: false }))
 
     template = await fs.readFile(path.join(clientDist, 'index.html'), 'utf-8')

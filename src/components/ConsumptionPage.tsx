@@ -23,9 +23,10 @@ const DEFAULT_PAGINATION: PaginationState = {
   totalPages: 1,
 }
 
-function formatMoney(amount: number | null | undefined): string {
-  if (typeof amount !== 'number' || Number.isNaN(amount)) return '-'
-  return `¥${amount.toFixed(2)}`
+function formatMoney(amount: number | string | null | undefined): string {
+  const numericAmount = typeof amount === 'string' ? Number(amount) : amount
+  if (typeof numericAmount !== 'number' || Number.isNaN(numericAmount)) return '-'
+  return `¥${numericAmount.toFixed(2)}`
 }
 
 function formatPoints(points: number | null | undefined): string {

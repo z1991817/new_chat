@@ -36,6 +36,8 @@ import {
 // ===== Image cache =====
 // 内存缓存，id → dataUrl，避免重复下载或重复转换
 
+export type LoginModalTab = 'login' | 'register'
+
 const imageCache = new Map<string, string>()
 const BANANA_TASK_STORAGE_KEY = 'banana-create-task'
 const BANANA_SSE_FIRST_EVENT_TIMEOUT_MS = 5000
@@ -154,7 +156,8 @@ interface AppState {
   showSettings: boolean
   setShowSettings: (v: boolean) => void
   loginOpen: boolean
-  setLoginOpen: (v: boolean) => void
+  loginModalTab: LoginModalTab
+  setLoginOpen: (v: boolean, tab?: LoginModalTab) => void
 
   // Toast
   toast: { message: string; type: 'info' | 'success' | 'error' } | null
@@ -310,7 +313,9 @@ export const useStore = create<AppState>()(
       showSettings: false,
       setShowSettings: (showSettings) => set({ showSettings }),
       loginOpen: false,
-      setLoginOpen: (loginOpen) => set({ loginOpen }),
+      loginModalTab: 'login',
+      setLoginOpen: (loginOpen, loginModalTab = 'login') =>
+        set(loginOpen ? { loginOpen, loginModalTab } : { loginOpen }),
 
       // Toast
       toast: null,

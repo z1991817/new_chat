@@ -1,18 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loginWithPassword, registerWithPassword, sendRegisterCode, useStore } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
-
-type Tab = 'login' | 'register'
 
 const inputCls =
   'w-full rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 outline-none focus:ring-2 focus:ring-blue-500/40 transition'
 
 export default function LoginModal() {
   const loginOpen = useStore((s) => s.loginOpen)
+  const loginModalTab = useStore((s) => s.loginModalTab)
   const setLoginOpen = useStore((s) => s.setLoginOpen)
   const showToast = useStore((s) => s.showToast)
-  const [tab, setTab] = useState<Tab>('login')
+  const [tab, setTab] = useState(loginModalTab)
   const [loading, setLoading] = useState(false)
 
   // login fields
@@ -28,6 +27,10 @@ export default function LoginModal() {
 
   const handleClose = () => setLoginOpen(false)
   useCloseOnEscape(loginOpen, handleClose)
+
+  useEffect(() => {
+    if (loginOpen) setTab(loginModalTab)
+  }, [loginModalTab, loginOpen])
 
   if (!loginOpen) return null
 
@@ -84,7 +87,7 @@ export default function LoginModal() {
       >
         {/* Tab 切换 */}
         <div className="flex gap-1 mb-5 p-1 rounded-xl bg-gray-100 dark:bg-white/[0.06]">
-          {(['login', 'register'] as Tab[]).map((t) => (
+          {(['login', 'register'] as const).map((t) => (
             <button
               key={t}
               type="button"

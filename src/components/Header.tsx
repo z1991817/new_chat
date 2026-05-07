@@ -9,7 +9,7 @@ const navItems: Array<{ label: string; key: string; path: '/' | '/prompts' | '/c
 ]
 
 const primaryButtonClass =
-  'rounded-lg border border-blue-500/20 bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/15 transition-colors hover:bg-blue-700 dark:border-blue-400/30 dark:bg-blue-500 dark:hover:bg-blue-400'
+  'rounded-lg border border-stone-900 bg-stone-950 px-3 py-1.5 text-sm font-semibold text-[#f3d9a5] shadow-sm shadow-stone-900/10 transition-colors hover:bg-stone-800 dark:border-[#d8b46a]/30 dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5] dark:hover:bg-[#d8b46a]/18'
 const accountButtonClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-white/[0.06]'
 const accountMenuClass =
@@ -195,6 +195,15 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigate('/')}
+          className="absolute left-1/2 -translate-x-1/2 text-base font-bold tracking-tight text-gray-800 dark:text-gray-100 cursor-pointer"
+          aria-label="返回首页"
+        >
+          Art Image
         </button>
 
         {isLoggedIn ? (

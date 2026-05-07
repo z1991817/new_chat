@@ -87,7 +87,7 @@ export interface RechargeOrderRecord {
   id: number
   order_no?: string | null
   package_name?: string | null
-  amount?: number | null
+  amount?: number | string | null
   points?: number | null
   status?: string | null
   payment_channel?: string | null
@@ -123,6 +123,31 @@ export interface RechargeOrderResult {
   points: number
   packageName: string
   payUrl?: string | null
+}
+
+export interface RechargeOrderDetail {
+  order?: {
+    id?: number
+    order_no?: string | null
+    status?: string | null
+  }
+  transactions?: Array<{
+    id?: number
+    order_id?: number
+    transaction_type?: string | null
+    status?: string | null
+  }>
+}
+
+export interface PromptLibraryRecord {
+  id: number
+  prompt: string
+  image_url: string
+  tag: string | null
+  sort_order: number
+  status: number
+  created_at: string
+  updated_at: string
 }
 
 interface BackendPaginationList<T> {
@@ -537,4 +562,43 @@ export async function createRechargeOrder(
     token,
     body: payload,
   })
+}
+
+export async function getRechargeOrder(
+  settings: AppSettings,
+  token: string,
+  orderId: number,
+): Promise<RechargeOrderDetail> {
+  return requestBackend<RechargeOrderDetail>(settings, `/app/recharge/orders/${orderId}`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export async function getPromptLibraries(
+  settings: AppSettings,
+  token: string | null | undefined,
+  params: {
+    page: number
+    pageSize: number
+    prompt?: string
+    tag?: string
+  },
+): Promise<PaginationList<PromptLibraryRecord>> {
+  const searchParams = new URLSearchParams()
+  searchParams.set('page', String(Math.max(params.page, 1)))
+  searchParams.set('pageSize', String(Math.max(params.pageSize, 1)))
+
+  const prompt = params.prompt?.trim()
+  if (prompt) searchParams.set('prompt', prompt)
+
+  const tag = params.tag?.trim()
+  if (tag) searchParams.set('tag', tag)
+
+  const data = await requestBackend<BackendPaginationList<PromptLibraryRecord>>(
+    settings,
+    `/app/prompt-libraries?${searchParams.toString()}`,
+    { method: 'GET', token: token ?? undefined },
+  )
+  return normalizePaginationList(data, params.page, params.pageSize)
 }

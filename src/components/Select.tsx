@@ -11,9 +11,10 @@ interface SelectProps {
   options: Option[]
   disabled?: boolean
   className?: string
+  selectedClassName?: string
 }
 
-export default function Select({ value, onChange, options, disabled, className }: SelectProps) {
+export default function Select({ value, onChange, options, disabled, className, selectedClassName }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [openUp, setOpenUp] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -81,7 +82,7 @@ export default function Select({ value, onChange, options, disabled, className }
               }}
               className={`px-3 py-2 text-xs cursor-pointer transition-colors ${
                 option.value === value
-                  ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium'
+                  ? selectedClassName ?? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.06]'
               }`}
             >

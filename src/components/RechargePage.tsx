@@ -5,6 +5,7 @@ import {
   createRechargeOrder,
   getRechargePackages,
 } from '../lib/backendApi'
+import { saveCashierOrder } from '../lib/cashier'
 
 interface PlanPreset {
   key: string
@@ -27,20 +28,23 @@ const PLAN_PRESETS: PlanPreset[] = [
     points: 15,
     imageCount: 15,
     videoCount: 5,
+    featured: true,
   },
   {
     key: 'advanced',
     title: '高级版',
-    subtitle: '适合高级用户的进阶套餐',
+    subtitle: '适合高频创作，积分更充足，性价比更高',
     amount: 49.9,
     points: 150,
     imageCount: 150,
     videoCount: 50,
+    featured: true,
+    extraFeature: '优先技术支持',
   },
   {
     key: 'premium',
     title: '豪华版',
-    subtitle: '适合专业需求的全功能套餐',
+    subtitle: '适合长期使用者，一次购买获得更大额度',
     amount: 99,
     points: 300,
     imageCount: 300,
@@ -86,17 +90,10 @@ export default function RechargePage() {
 
   const packageMap = useMemo(() => {
     const map = new Map<string, RechargePackage>()
-    for (const plan of PLAN_PRESETS) {
-      const exact = packages.find((item) => Number(item.amount) === plan.amount && Number(item.points) === plan.points)
-      if (exact) {
-        map.set(plan.key, exact)
-        continue
-      }
-      const sameAmount = packages.find((item) => Number(item.amount) === plan.amount)
-      if (sameAmount) {
-        map.set(plan.key, sameAmount)
-      }
-    }
+    PLAN_PRESETS.forEach((plan, index) => {
+      const pkg = packages[index]
+      if (pkg) map.set(plan.key, pkg)
+    })
     return map
   }, [packages])
 
@@ -111,17 +108,30 @@ export default function RechargePage() {
       return
     }
 
+    const cashierWindow = window.open('/cashier?creating=1', '_blank')
     setSubmittingPlanKey(plan.key)
     try {
       const order = await createRechargeOrder(settings, token, {
         packageId: pkg.id,
         payType: 2,
       })
-      if (order.payUrl) {
-        window.open(order.payUrl, '_blank', 'noopener,noreferrer')
+
+      const cashierOrder = saveCashierOrder(order)
+      if (cashierOrder) {
+        const cashierUrl = `/cashier?orderId=${encodeURIComponent(String(cashierOrder.orderId))}`
+        if (cashierWindow && !cashierWindow.closed) {
+          cashierWindow.location.href = cashierUrl
+        } else {
+          window.open(cashierUrl, '_blank', 'noopener,noreferrer')
+        }
+      } else if (cashierWindow && !cashierWindow.closed) {
+        cashierWindow.close()
       }
       showToast(order.payUrl ? '订单已创建，请完成支付' : `订单已创建：${order.orderNo}`, 'success')
     } catch (error) {
+      if (cashierWindow && !cashierWindow.closed) {
+        cashierWindow.close()
+      }
       const message = error instanceof Error ? error.message : '创建充值订单失败'
       showToast(message, 'error')
     } finally {
@@ -138,7 +148,7 @@ export default function RechargePage() {
           <button
             type="button"
             onClick={() => setLoginOpen(true)}
-            className="mt-4 rounded-lg border border-blue-500/20 bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:border-blue-400/30 dark:bg-blue-500 dark:hover:bg-blue-400"
+            className="mt-4 rounded-lg border border-stone-900 bg-stone-950 px-4 py-2 text-sm font-medium text-[#f3d9a5] transition-colors hover:bg-stone-800 dark:border-[#d8b46a]/30 dark:bg-[#d8b46a]/12 dark:hover:bg-[#d8b46a]/18"
           >
             去登录
           </button>
@@ -152,11 +162,11 @@ export default function RechargePage() {
       <div className="rounded-3xl border border-gray-200 bg-white/80 px-5 py-8 text-gray-900 shadow-sm shadow-gray-900/5 ring-1 ring-white/70 dark:border-white/[0.08] dark:bg-gray-900/70 dark:text-gray-100 dark:ring-white/[0.04] sm:px-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold tracking-[0.18em] text-blue-600 dark:text-blue-400">ART IMAGE CREDITS</p>
+            <p className="text-sm font-semibold tracking-[0.18em] text-[#9b7436] dark:text-[#d8b46a]">ART IMAGE CREDITS</p>
             <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">积分充值</h2>
-            <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+            {/* <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
               购买积分后即可用于图片生成。这里保持和工作台一致的轻量面板，支付信息只作为辅助操作出现。
-            </p>
+            </p> */}
           </div>
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
             <span className="h-2 w-2 rounded-full bg-amber-500" />
@@ -169,6 +179,8 @@ export default function RechargePage() {
             const pkg = packageMap.get(plan.key)
             const isSubmitting = submittingPlanKey === plan.key
             const isUnavailable = !loading && !pkg
+            const amount = pkg ? Number(pkg.amount) : plan.amount
+            const points = pkg ? Number(pkg.points) : plan.points
 
             return (
               <article
@@ -176,25 +188,25 @@ export default function RechargePage() {
                 className={[
                   'flex h-full flex-col rounded-2xl border bg-white p-5 shadow-sm transition-colors dark:bg-gray-950/40',
                   plan.featured
-                    ? 'border-blue-300 ring-1 ring-blue-500/15 dark:border-blue-400/40 dark:ring-blue-400/15'
+                    ? 'border-[#d8b46a]/55 ring-1 ring-[#d8b46a]/18 shadow-[#d8b46a]/10 dark:border-[#d8b46a]/35 dark:ring-[#d8b46a]/16'
                     : 'border-gray-200 dark:border-white/[0.08]',
                 ].join(' ')}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{plan.title}</h3>
                     <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{plan.subtitle}</p>
                   </div>
                   {plan.featured && (
-                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                    <span className="inline-flex min-w-[3.25rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#d8b46a]/35 bg-[#fbf7ef] px-2.5 py-1 text-xs font-semibold text-[#8a642d] dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5]">
                       推荐
                     </span>
                   )}
                 </div>
 
                 <p className="mt-7 flex items-end gap-2">
-                  <span className="text-4xl font-bold tracking-tight text-gray-950 dark:text-white">¥{formatAmount(plan.amount)}</span>
-                  <span className="pb-1 text-sm font-semibold text-amber-700 dark:text-amber-300">共 {plan.points} 积分</span>
+                  <span className="text-4xl font-bold tracking-tight text-gray-950 dark:text-white">¥{formatAmount(amount)}</span>
+                  <span className="pb-1 text-sm font-semibold text-amber-700 dark:text-amber-300">共 {points} 积分</span>
                 </p>
 
                 <button
@@ -204,7 +216,7 @@ export default function RechargePage() {
                   className={[
                     'mt-6 inline-flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-colors',
                     plan.featured
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
+                      ? 'bg-stone-950 text-[#f3d9a5] hover:bg-stone-800 dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5] dark:hover:bg-[#d8b46a]/18'
                       : 'border border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100 dark:hover:bg-white/[0.08]',
                     'disabled:cursor-not-allowed disabled:opacity-60',
                   ].join(' ')}
@@ -215,11 +227,11 @@ export default function RechargePage() {
                 <ul className="mt-6 space-y-3 text-sm text-gray-600 dark:text-gray-300">
                   <li className="flex items-start gap-3">
                     <CheckIcon />
-                    <span>{plan.points} 积分，永久有效</span>
+                    <span>{points} 积分，永久有效</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <CheckIcon />
-                    <span>最多可生成 {plan.imageCount} 张图片</span>
+                    <span>最少可生成 {points / 50} 张图片</span>
                   </li>
                   
                   <li className="flex items-start gap-3">

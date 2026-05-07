@@ -2,8 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src:
+    local(HarmonyOS_Sans_SC_Light),
+    local('HarmonyOS Sans SC Light'),
+    url('/fonts/harmonyos-sans-sc/HarmonyOS_Sans_SC_Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src:
+    local(HarmonyOS_Sans_SC_Regular),
+    local(HarmonyOS_Sans_SC),
+    local('HarmonyOS Sans SC Regular'),
+    local('HarmonyOS Sans SC'),
+    url('/fonts/harmonyos-sans-sc/HarmonyOS_Sans_SC_Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src:
+    local(HarmonyOS_Sans_SC_Medium),
+    local('HarmonyOS Sans SC Regular Medium'),
+    url('/fonts/harmonyos-sans-sc/HarmonyOS_Sans_SC_Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src:
+    local(HarmonyOS_Sans_SC_Bold),
+    local('HarmonyOS Sans SC Bold'),
+    url('/fonts/harmonyos-sans-sc/HarmonyOS_Sans_SC_Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --font-ui-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-ui-sans: 'HarmonyOS Sans SC', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'Maple Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
   --color-brand-primary: #2563eb;
   --color-brand-primary-hover: #1d4ed8;
