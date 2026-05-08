@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
-import { useStore, getCachedImage, ensureImageCached, reuseConfig, editOutputs, removeTask, updateTaskInStore, showCodexCliPrompt, getCodexCliPromptKey, retryTask } from '../store'
+import { useStore, getCachedImage, ensureImageCached, reuseConfig, editOutputs, removeTask, setTaskFavorite, showCodexCliPrompt, getCodexCliPromptKey, retryTask } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { formatImageRatio } from '../lib/size'
 import { ActualValueBadge } from '../lib/paramDisplay'
@@ -231,7 +231,7 @@ export default function DetailModal() {
   }
 
   const handleToggleFavorite = () => {
-    updateTaskInStore(task.id, { isFavorite: !task.isFavorite })
+    setTaskFavorite(task.id, !task.isFavorite)
   }
 
   const handleCopyError = async () => {

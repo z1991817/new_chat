@@ -5,6 +5,8 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 
 const inputCls =
   'w-full rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 outline-none focus:ring-2 focus:ring-blue-500/40 transition'
+const submitButtonCls =
+  'flex-1 py-2 rounded-lg bg-stone-950 hover:bg-stone-800 dark:bg-[#d8b46a]/12 dark:hover:bg-[#d8b46a]/18 text-[#f3d9a5] text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer'
 
 export default function LoginModal() {
   const loginOpen = useStore((s) => s.loginOpen)
@@ -122,7 +124,7 @@ export default function LoginModal() {
                 取消
               </button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-medium transition cursor-pointer">
+                className={submitButtonCls}>
                 {loading ? '登录中…' : '登录'}
               </button>
             </div>
@@ -160,7 +162,7 @@ export default function LoginModal() {
                 取消
               </button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-medium transition cursor-pointer">
+                className={submitButtonCls}>
                 {loading ? '注册中…' : '注册'}
               </button>
             </div>

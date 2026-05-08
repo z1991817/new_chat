@@ -103,6 +103,8 @@ export interface TaskRecord {
   elapsed: number | null
   /** 是否收藏 */
   isFavorite?: boolean
+  /** 是否删除（软删） */
+  isDeleted?: boolean
   unit_consume_points?: number | null
 }
 

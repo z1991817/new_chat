@@ -29,6 +29,8 @@ import {
   queryTask,
   register as registerApi,
   resolveAssetUrl,
+  setMyCreationDeleted,
+  setMyCreationFavorite,
   sendCode as sendCodeApi,
   uploadImage,
 } from './lib/backendApi'
@@ -407,6 +409,23 @@ function parseTime(value: string | number | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
+function normalizeRemoteBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === '1' || normalized === 'true' || normalized === 'yes'
+  }
+  return false
+}
+
+function parseRemoteCreationId(taskId: string): number | null {
+  const match = taskId.match(/^remote-(\d+)$/)
+  if (!match) return null
+  const parsed = Number(match[1])
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 function toLocalTask(record: CreationRecord, settings: AppSettings): TaskRecord {
   const createdAt = parseTime(record.created_at)
   const updatedAt = parseTime(record.updated_at)
@@ -437,6 +456,8 @@ function toLocalTask(record: CreationRecord, settings: AppSettings): TaskRecord 
     createdAt,
     finishedAt: updatedAt,
     elapsed: updatedAt >= createdAt ? updatedAt - createdAt : null,
+    isFavorite: normalizeRemoteBoolean(record.is_favorite),
+    isDeleted: normalizeRemoteBoolean(record.is_deleted),
   }
 }
 
@@ -891,7 +912,7 @@ export async function refreshMyCreations(options: { silent?: boolean } = {}) {
   myCreationsLoading = true
   try {
     const pageData = await getMyCreationsPage(state.settings, state.token, 1, MY_CREATIONS_PAGE_SIZE)
-    const list = pageData?.list ?? []
+    const list = (pageData?.list ?? []).filter((item) => !normalizeRemoteBoolean(item.is_deleted))
     const remoteTasks = list.map((item) => toLocalTask(item, state.settings)).sort((a, b) => b.createdAt - a.createdAt)
     const localRunningTasks = state.tasks.filter(
       (task) => task.status === 'running' && !task.id.startsWith('remote-'),
@@ -925,7 +946,7 @@ export async function loadMoreMyCreations(options: { silent?: boolean } = {}) {
   try {
     const nextPage = myCreationsPage + 1
     const pageData = await getMyCreationsPage(state.settings, state.token, nextPage, MY_CREATIONS_PAGE_SIZE)
-    const list = pageData?.list ?? []
+    const list = (pageData?.list ?? []).filter((item) => !normalizeRemoteBoolean(item.is_deleted))
     const incoming = list.map((item) => toLocalTask(item, state.settings)).sort((a, b) => b.createdAt - a.createdAt)
     const existingIds = new Set(state.tasks.map((task) => task.id))
     const appendTasks = incoming.filter((task) => !existingIds.has(task.id))
@@ -1404,84 +1425,170 @@ export async function editOutputs(task: TaskRecord) {
   showToast(`已添加 ${added} 张输出图到输入`, 'success')
 }
 
-/** 删除多条任务 */
-export async function removeMultipleTasks(taskIds: string[]) {
-  const { tasks, setTasks, inputImages, showToast, selectedTaskIds } = useStore.getState()
-  
+export async function setTaskFavorite(taskId: string, isFavorite: boolean) {
+  await setMultipleTasksFavorite([taskId], isFavorite)
+}
+
+export async function setMultipleTasksFavorite(taskIds: string[], isFavorite: boolean) {
+  const state = useStore.getState()
   if (!taskIds.length) return
 
-  const toDelete = new Set(taskIds)
-  const remaining = tasks.filter(t => !toDelete.has(t.id))
+  const taskMap = new Map(state.tasks.map((task) => [task.id, task]))
+  const previousFavoriteState = new Map<string, boolean | undefined>()
+  const remoteTargets: Array<{ taskId: string; remoteId: number }> = []
 
-  // 收集所有被删除任务的关联图片
-  const deletedImageIds = new Set<string>()
-  for (const t of tasks) {
-    if (toDelete.has(t.id)) {
-      for (const id of t.inputImageIds || []) deletedImageIds.add(id)
-      if (t.maskImageId) deletedImageIds.add(t.maskImageId)
-      for (const id of t.outputImages || []) deletedImageIds.add(id)
+  for (const taskId of taskIds) {
+    const task = taskMap.get(taskId)
+    if (!task) continue
+    previousFavoriteState.set(taskId, task.isFavorite)
+    updateTaskInStore(taskId, { isFavorite })
+    const remoteId = parseRemoteCreationId(taskId)
+    if (remoteId) {
+      remoteTargets.push({ taskId, remoteId })
     }
+  }
+
+  if (!remoteTargets.length) return
+
+  if (!state.token) {
+    previousFavoriteState.forEach((favorite, taskId) => {
+      updateTaskInStore(taskId, { isFavorite: favorite })
+    })
+    state.showToast('登录失效，请重新登录', 'error')
+    return
+  }
+
+  for (let i = 0; i < remoteTargets.length; i++) {
+    const target = remoteTargets[i]
+    try {
+      await setMyCreationFavorite(state.settings, state.token, target.remoteId, isFavorite)
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        handleUnauthorized()
+      } else {
+        state.showToast(
+          error instanceof Error ? `同步收藏状态失败：${error.message}` : '同步收藏状态失败',
+          'error',
+        )
+      }
+
+      for (let j = i; j < remoteTargets.length; j++) {
+        const pending = remoteTargets[j]
+        updateTaskInStore(pending.taskId, {
+          isFavorite: previousFavoriteState.get(pending.taskId),
+        })
+      }
+      return
+    }
+  }
+}
+
+function removeTasksLocally(taskIds: string[]): number {
+  const { tasks, setTasks, inputImages, selectedTaskIds } = useStore.getState()
+  if (!taskIds.length) return 0
+
+  const toDelete = new Set(taskIds)
+  const removableTasks = tasks.filter((task) => toDelete.has(task.id))
+  if (!removableTasks.length) return 0
+
+  const remaining = tasks.filter((task) => !toDelete.has(task.id))
+
+  const deletedImageIds = new Set<string>()
+  for (const task of removableTasks) {
+    for (const id of task.inputImageIds || []) deletedImageIds.add(id)
+    if (task.maskImageId) deletedImageIds.add(task.maskImageId)
+    for (const id of task.outputImages || []) deletedImageIds.add(id)
   }
 
   setTasks(remaining)
 
-  // 找出其他任务仍引用的图片
   const stillUsed = new Set<string>()
-  for (const t of remaining) {
-    for (const id of t.inputImageIds || []) stillUsed.add(id)
-    if (t.maskImageId) stillUsed.add(t.maskImageId)
-    for (const id of t.outputImages || []) stillUsed.add(id)
+  for (const task of remaining) {
+    for (const id of task.inputImageIds || []) stillUsed.add(id)
+    if (task.maskImageId) stillUsed.add(task.maskImageId)
+    for (const id of task.outputImages || []) stillUsed.add(id)
   }
-  for (const img of inputImages) stillUsed.add(img.id)
+  for (const image of inputImages) stillUsed.add(image.id)
 
-  // 删除孤立图片
   for (const imgId of deletedImageIds) {
     if (!stillUsed.has(imgId)) {
       imageCache.delete(imgId)
     }
   }
 
-  // 如果删除的任务在选中列表中，则移除
-  const newSelection = selectedTaskIds.filter(id => !toDelete.has(id))
+  const newSelection = selectedTaskIds.filter((id) => !toDelete.has(id))
   if (newSelection.length !== selectedTaskIds.length) {
     useStore.getState().setSelectedTaskIds(newSelection)
   }
 
-  showToast(`已删除 ${taskIds.length} 条记录`, 'success')
+  return removableTasks.length
+}
+
+/** 删除多条任务 */
+export async function removeMultipleTasks(taskIds: string[]) {
+  const state = useStore.getState()
+  if (!taskIds.length) return
+
+  const toDelete = new Set(taskIds)
+  const matchedTasks = state.tasks.filter((task) => toDelete.has(task.id))
+  if (!matchedTasks.length) return
+
+  const removableTaskIds: string[] = []
+  const remoteTargets: Array<{ taskId: string; remoteId: number }> = []
+
+  for (const task of matchedTasks) {
+    const remoteId = parseRemoteCreationId(task.id)
+    if (remoteId) {
+      remoteTargets.push({ taskId: task.id, remoteId })
+    } else {
+      removableTaskIds.push(task.id)
+    }
+  }
+
+  let failedCount = 0
+
+  if (remoteTargets.length > 0) {
+    if (!state.token) {
+      state.showToast('登录失效，请重新登录', 'error')
+      return
+    }
+
+    for (const target of remoteTargets) {
+      try {
+        await setMyCreationDeleted(state.settings, state.token, target.remoteId, true)
+        removableTaskIds.push(target.taskId)
+      } catch (error) {
+        failedCount += 1
+        if (isUnauthorizedError(error)) {
+          handleUnauthorized()
+          break
+        }
+        state.showToast(
+          error instanceof Error ? `删除记录失败：${error.message}` : '删除记录失败',
+          'error',
+        )
+      }
+    }
+  }
+
+  const removedCount = removeTasksLocally(removableTaskIds)
+  if (removedCount <= 0 && failedCount <= 0) return
+
+  if (failedCount > 0) {
+    if (removedCount > 0) {
+      state.showToast(`已删除 ${removedCount} 条记录，${failedCount} 条删除失败`, 'error')
+    } else {
+      state.showToast('删除记录失败', 'error')
+    }
+    return
+  }
+
+  state.showToast(`已删除 ${removedCount} 条记录`, 'success')
 }
 
 /** 删除单条任务 */
 export async function removeTask(task: TaskRecord) {
-  const { tasks, setTasks, inputImages, showToast } = useStore.getState()
-
-  // 收集此任务关联的图片
-  const taskImageIds = new Set([
-    ...(task.inputImageIds || []),
-    ...(task.maskImageId ? [task.maskImageId] : []),
-    ...(task.outputImages || []),
-  ])
-
-  // 从列表移除
-  const remaining = tasks.filter((t) => t.id !== task.id)
-  setTasks(remaining)
-
-  // 找出其他任务仍引用的图片
-  const stillUsed = new Set<string>()
-  for (const t of remaining) {
-    for (const id of t.inputImageIds || []) stillUsed.add(id)
-    if (t.maskImageId) stillUsed.add(t.maskImageId)
-    for (const id of t.outputImages || []) stillUsed.add(id)
-  }
-  for (const img of inputImages) stillUsed.add(img.id)
-
-  // 删除孤立图片
-  for (const imgId of taskImageIds) {
-    if (!stillUsed.has(imgId)) {
-      imageCache.delete(imgId)
-    }
-  }
-
-  showToast('记录已删除', 'success')
+  await removeMultipleTasks([task.id])
 }
 
 /** 清空所有数据（含配置重置） */

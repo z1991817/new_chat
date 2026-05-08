@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Coins } from 'lucide-react'
-import { useStore, submitTask, addImageFromFile, updateTaskInStore, removeMultipleTasks } from '../store'
+import { useStore, submitTask, addImageFromFile, removeMultipleTasks, setMultipleTasksFavorite } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL } from '../types'
 import { calculateImageSize, normalizeImageSize, type SizeTier } from '../lib/size'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
@@ -229,9 +229,7 @@ export default function InputBar() {
         : `确定要取消收藏选中的 ${selectedTaskIds.length} 条记录吗？`,
       confirmText: newFavoriteState ? '确认收藏' : '确认取消',
       action: () => {
-        selectedTaskIds.forEach((id) => {
-          updateTaskInStore(id, { isFavorite: newFavoriteState })
-        })
+        setMultipleTasksFavorite(selectedTaskIds, newFavoriteState)
         clearSelection()
       },
     })

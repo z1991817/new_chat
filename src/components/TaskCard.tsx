@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import type { TaskRecord } from '../types'
-import { useStore, getCachedImage, ensureImageCached, updateTaskInStore, retryTask } from '../store'
+import { useStore, getCachedImage, ensureImageCached, setTaskFavorite, retryTask } from '../store'
 import { formatImageRatio } from '../lib/size'
 import { ParamValue } from '../lib/paramDisplay'
 
@@ -369,9 +369,7 @@ export default function TaskCard({
                 </button>
               )}
               <button
-                onClick={() =>
-                  updateTaskInStore(task.id, { isFavorite: !task.isFavorite })
-                }
+                onClick={() => setTaskFavorite(task.id, !task.isFavorite)}
                 className={`p-1.5 rounded-md transition ${
                   task.isFavorite
                     ? 'text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-500/10'

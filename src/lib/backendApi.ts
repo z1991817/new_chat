@@ -8,7 +8,7 @@ interface BackendEnvelope<T> {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   token?: string
   body?: unknown
   signal?: AbortSignal
@@ -70,6 +70,8 @@ export interface CreationRecord {
   cos_url?: string | null
   thumbnail_url?: string | null
   status?: string | null
+  is_favorite?: number | boolean | null
+  is_deleted?: number | boolean | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -480,6 +482,36 @@ export async function getMyCreationsPage(
     `/app/my-creations?page=${page}&pageSize=${pageSize}`,
     { method: 'GET', token },
   )
+}
+
+export async function setMyCreationFavorite(
+  settings: AppSettings,
+  token: string,
+  id: number,
+  isFavorite: boolean | 0 | 1,
+): Promise<unknown> {
+  return requestBackend<unknown>(settings, `/app/my-creations/${id}/favorite`, {
+    method: 'PUT',
+    token,
+    body: {
+      is_favorite: isFavorite,
+    },
+  })
+}
+
+export async function setMyCreationDeleted(
+  settings: AppSettings,
+  token: string,
+  id: number,
+  isDeleted: boolean | 0 | 1,
+): Promise<unknown> {
+  return requestBackend<unknown>(settings, `/app/my-creations/${id}/deleted`, {
+    method: 'PUT',
+    token,
+    body: {
+      is_deleted: isDeleted,
+    },
+  })
 }
 
 export async function getAllMyCreations(settings: AppSettings, token: string, pageSize = 50): Promise<CreationRecord[]> {
