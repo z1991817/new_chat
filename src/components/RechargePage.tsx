@@ -224,6 +224,16 @@ export default function RechargePage() {
     }
 
     const payType = resolvePayType()
+    const mobilePaymentWindow =
+      payType === 3 ? window.open('/cashier?creating=1', '_blank', 'noopener,noreferrer') : null
+    if (mobilePaymentWindow) {
+      mobilePaymentWindow.opener = null
+    }
+    if (payType === 3 && !mobilePaymentWindow) {
+      showToast('浏览器阻止了支付新页面，请允许弹出窗口后重试', 'error')
+      return
+    }
+
     const cashierWindow = payType === 2 ? window.open('/cashier?creating=1', '_blank') : null
     setSubmittingPlanKey(plan.key)
     try {
@@ -242,12 +252,14 @@ export default function RechargePage() {
         setPaymentPollVersion((value) => value + 1)
 
         if (payType === 3) {
-          const paymentWindow = window.open(pending.payUrl, '_blank', 'noopener,noreferrer')
-          if (paymentWindow) {
-            paymentWindow.opener = null
-            showToast('订单已创建，请在新页面完成支付', 'success')
+          if (!mobilePaymentWindow || mobilePaymentWindow.closed) {
+            showToast('支付页面已关闭，请重新点击购买创建新订单', 'error')
             return
           }
+
+          mobilePaymentWindow.location.href = pending.payUrl
+          showToast('订单已创建，请在新页面完成支付', 'success')
+          return
         }
 
         window.location.href = pending.payUrl
@@ -269,6 +281,9 @@ export default function RechargePage() {
     } catch (error) {
       if (cashierWindow && !cashierWindow.closed) {
         cashierWindow.close()
+      }
+      if (mobilePaymentWindow && !mobilePaymentWindow.closed) {
+        mobilePaymentWindow.close()
       }
       const message = error instanceof Error ? error.message : '创建充值订单失败'
       showToast(message, 'error')
