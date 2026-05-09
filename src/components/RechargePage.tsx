@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useStore } from '../store'
+import { refreshCurrentUser, useStore } from '../store'
 import {
   type RechargePackage,
   createRechargeOrder,
+  getRechargeOrder,
   getRechargePackages,
 } from '../lib/backendApi'
 import { saveCashierOrder } from '../lib/cashier'
+import {
+  type PendingPayment,
+  clearPendingPayment,
+  clearPaymentReturnMarker,
+  createPendingPayment,
+  hasPaymentReturnMarker,
+  isMobilePayType,
+  markPaymentReturn,
+  readPendingPayment,
+  resolvePayType,
+  savePendingPayment,
+} from '../lib/mobilePayment'
 
 interface PlanPreset {
   key: string
@@ -54,9 +67,20 @@ const PLAN_PRESETS: PlanPreset[] = [
   },
 ]
 
+const MAX_POLL_TIMES = 100
+const POLL_INTERVAL_MS = 3000
+
 function formatAmount(value: number): string {
   const hasDecimal = value % 1 !== 0
   return hasDecimal ? value.toFixed(1) : value.toFixed(0)
+}
+
+function normalizeOrderStatus(status: string | null | undefined): 'pending' | 'paid' | 'failed' | 'expired' {
+  const normalized = (status ?? '').toLowerCase()
+  if (normalized === 'paid' || normalized === 'success') return 'paid'
+  if (normalized === 'failed' || normalized === 'cancelled' || normalized === 'canceled') return 'failed'
+  if (normalized === 'expired' || normalized === 'closed') return 'expired'
+  return 'pending'
 }
 
 function CheckIcon() {
@@ -75,6 +99,8 @@ export default function RechargePage() {
   const [loading, setLoading] = useState(false)
   const [submittingPlanKey, setSubmittingPlanKey] = useState<string | null>(null)
   const [packages, setPackages] = useState<RechargePackage[]>([])
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null)
+  const [paymentPollVersion, setPaymentPollVersion] = useState(0)
 
   useEffect(() => {
     if (!token) return
@@ -87,6 +113,95 @@ export default function RechargePage() {
       })
       .finally(() => setLoading(false))
   }, [settings, showToast, token])
+
+  useEffect(() => {
+    const payment = readPendingPayment()
+    if (payment) setPendingPayment(payment)
+  }, [])
+
+  useEffect(() => {
+    if (!token || !pendingPayment) return
+
+    let stopped = false
+    let timeoutId: number | undefined
+    let pollCount = 0
+
+    const stopPolling = () => {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+        timeoutId = undefined
+      }
+    }
+
+    const finishPayment = (message: string, type: 'success' | 'error') => {
+      clearPendingPayment()
+      setPendingPayment(null)
+      showToast(message, type)
+    }
+
+    const checkOrder = async (shouldContinuePending: boolean) => {
+      try {
+        const detail = await getRechargeOrder(settings, token, pendingPayment.orderId)
+        if (stopped) return
+
+        const status = normalizeOrderStatus(detail.order?.status)
+        if (status === 'paid') {
+          await refreshCurrentUser({ silent: true })
+          if (stopped) return
+          finishPayment('支付成功，积分已到账', 'success')
+          return
+        }
+
+        if (status === 'failed' || status === 'expired') {
+          finishPayment(status === 'expired' ? '订单已过期，请重新购买' : '支付失败，请重新购买', 'error')
+          return
+        }
+
+        if (!shouldContinuePending) return
+
+        pollCount += 1
+        if (pollCount >= MAX_POLL_TIMES) {
+          clearPaymentReturnMarker()
+          showToast('暂未确认支付结果，可稍后刷新充值页查看', 'info')
+          return
+        }
+
+        timeoutId = window.setTimeout(() => void checkOrder(true), POLL_INTERVAL_MS)
+      } catch (error) {
+        if (stopped) return
+        if (shouldContinuePending && pollCount < MAX_POLL_TIMES) {
+          pollCount += 1
+          timeoutId = window.setTimeout(() => void checkOrder(true), POLL_INTERVAL_MS)
+          return
+        }
+        showToast(error instanceof Error ? error.message : '查询支付状态失败', 'error')
+      }
+    }
+
+    void checkOrder(hasPaymentReturnMarker())
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopPolling()
+        return
+      }
+      if (hasPaymentReturnMarker()) {
+        stopPolling()
+        pollCount = 0
+        void checkOrder(true)
+      }
+    }
+
+    window.addEventListener('pagehide', stopPolling)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      stopped = true
+      stopPolling()
+      window.removeEventListener('pagehide', stopPolling)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [paymentPollVersion, pendingPayment, settings, showToast, token])
 
   const packageMap = useMemo(() => {
     const map = new Map<string, RechargePackage>()
@@ -108,13 +223,36 @@ export default function RechargePage() {
       return
     }
 
-    const cashierWindow = window.open('/cashier?creating=1', '_blank')
+    const payType = resolvePayType()
+    const cashierWindow = payType === 2 ? window.open('/cashier?creating=1', '_blank') : null
     setSubmittingPlanKey(plan.key)
     try {
       const order = await createRechargeOrder(settings, token, {
         packageId: pkg.id,
-        payType: 2,
+        payType,
       })
+
+      if (isMobilePayType(payType)) {
+        const pending = createPendingPayment(order, payType)
+        if (!pending) throw new Error('订单未返回支付链接，请稍后重试')
+
+        savePendingPayment(pending)
+        markPaymentReturn()
+        setPendingPayment(pending)
+        setPaymentPollVersion((value) => value + 1)
+
+        if (payType === 3) {
+          const paymentWindow = window.open(pending.payUrl, '_blank', 'noopener,noreferrer')
+          if (paymentWindow) {
+            paymentWindow.opener = null
+            showToast('订单已创建，请在新页面完成支付', 'success')
+            return
+          }
+        }
+
+        window.location.href = pending.payUrl
+        return
+      }
 
       const cashierOrder = saveCashierOrder(order)
       if (cashierOrder) {
@@ -264,6 +402,14 @@ export default function RechargePage() {
             )
           })}
         </div>
+
+        {pendingPayment && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+            <p>
+              订单 {pendingPayment.packageName || pendingPayment.orderId} 正在等待支付，请在 5 分钟内完成支付。若支付链接已失效，请重新购买生成新订单。
+            </p>
+          </div>
+        )}
       </div>
     </section>
   )

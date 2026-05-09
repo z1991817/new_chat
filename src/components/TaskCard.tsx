@@ -342,8 +342,13 @@ export default function TaskCard({
           <div className="mt-auto flex flex-col gap-1.5">
             {/* 参数：横向滚动 */}
             <div className="flex overflow-x-auto hide-scrollbar gap-1.5 whitespace-nowrap mask-edge-r min-w-0 pr-2">
-              <ParamValue task={task} paramKey="quality" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
-              <ParamValue task={task} paramKey="size" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
+              {task.status === 'running' ? (
+                <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0 bg-gray-100 text-gray-500 dark:bg-white/[0.04] dark:text-gray-400">
+                  {task.params.aspectRatio || task.params.size}
+                </span>
+              ) : (
+                <ParamValue task={task} paramKey="size" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
+              )}
               <ParamValue task={task} paramKey="output_format" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" />
               <ParamValue task={task} paramKey="n" className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" actualParams={aggregateActualParams} />
               {task.maskImageId && (
