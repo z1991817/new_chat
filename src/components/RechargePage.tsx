@@ -224,11 +224,7 @@ export default function RechargePage() {
     }
 
     const payType = resolvePayType()
-    const mobilePaymentWindow =
-      payType === 3 ? window.open('/cashier?creating=1', '_blank', 'noopener,noreferrer') : null
-    if (mobilePaymentWindow) {
-      mobilePaymentWindow.opener = null
-    }
+    const mobilePaymentWindow = payType === 3 ? window.open('about:blank', '_blank') : null
     if (payType === 3 && !mobilePaymentWindow) {
       showToast('浏览器阻止了支付新页面，请允许弹出窗口后重试', 'error')
       return
@@ -257,7 +253,8 @@ export default function RechargePage() {
             return
           }
 
-          mobilePaymentWindow.location.href = pending.payUrl
+          mobilePaymentWindow.location.replace(pending.payUrl)
+          mobilePaymentWindow.opener = null
           showToast('订单已创建，请在新页面完成支付', 'success')
           return
         }
