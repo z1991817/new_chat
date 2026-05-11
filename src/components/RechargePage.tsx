@@ -47,7 +47,7 @@ const PLAN_PRESETS: PlanPreset[] = [
     key: 'advanced',
     title: '高级版',
     subtitle: '适合高频创作，积分更充足，性价比更高',
-    amount: 49.9,
+    amount: 39.9,
     points: 4500,
     imageCount: 150,
     videoCount: 50,
@@ -298,7 +298,7 @@ export default function RechargePage() {
           <button
             type="button"
             onClick={() => setLoginOpen(true)}
-            className="mt-4 rounded-lg border border-stone-900 bg-stone-950 px-4 py-2 text-sm font-medium text-[#f3d9a5] transition-colors hover:bg-stone-800 dark:border-[#d8b46a]/30 dark:bg-[#d8b46a]/12 dark:hover:bg-[#d8b46a]/18"
+            className="mt-4 rounded-lg border border-slate-900 bg-[#0f172a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
           >
             去登录
           </button>
@@ -366,7 +366,7 @@ export default function RechargePage() {
                   className={[
                     'mt-6 inline-flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-colors',
                     plan.featured
-                      ? 'bg-stone-950 text-[#f3d9a5] hover:bg-stone-800 dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5] dark:hover:bg-[#d8b46a]/18'
+                      ? 'bg-[#0f172a] text-white hover:bg-slate-800'
                       : 'border border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100 dark:hover:bg-white/[0.08]',
                     'disabled:cursor-not-allowed disabled:opacity-60',
                   ].join(' ')}

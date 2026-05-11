@@ -354,6 +354,7 @@ export async function createBananaImage(
     skuCode?: string
     imageUrl?: string
     imageUrls?: string[]
+    negativePromptEnabled?: boolean
     idempotencyKey: string
     skuId?: number
   },
@@ -386,6 +387,7 @@ export async function createTextToImage(
     n?: 1
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
+    negativePromptEnabled?: boolean
     uploadToCos: true
     idempotencyKey: string
   },
@@ -418,6 +420,7 @@ export async function createImageToImage(
     imageUrl: string[]
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
+    negativePromptEnabled?: boolean
     uploadToCos: true
     idempotencyKey: string
   },

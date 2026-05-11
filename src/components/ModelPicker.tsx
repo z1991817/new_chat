@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Coins } from 'lucide-react'
 import type { BackendModel } from '../lib/backendApi'
 
@@ -124,11 +125,13 @@ export default function ModelPicker({
 }: ModelPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [openUp, setOpenUp] = useState(false)
-  const [alignRight, setAlignRight] = useState(false)
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties | null>(null)
   const [activeProvider, setActiveProvider] = useState<ProviderKey>('openai')
   const [mounted, setMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const mountedTimerRef = useRef<number | null>(null)
 
   const entries = useMemo(() => toModelEntries(models, fallbackOptions), [models, fallbackOptions])
   const selected = useMemo(() => entries.find((item) => item.value === value) ?? entries[0], [entries, value])
@@ -164,7 +167,10 @@ export default function ModelPicker({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false)
+      const target = event.target as Node
+      if (containerRef.current?.contains(target)) return
+      if (panelRef.current?.contains(target)) return
+      setIsOpen(false)
     }
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsOpen(false)
@@ -177,25 +183,76 @@ export default function ModelPicker({
     }
   }, [])
 
+  useEffect(
+    () => () => {
+      if (mountedTimerRef.current != null) {
+        window.clearTimeout(mountedTimerRef.current)
+      }
+    },
+    [],
+  )
+
+  const updatePanelLayout = useCallback(() => {
+    if (!triggerRef.current) return
+
+    const triggerRect = triggerRef.current.getBoundingClientRect()
+    const inputBar = triggerRef.current.closest('[data-input-bar]') as HTMLElement | null
+    const anchorRect = inputBar?.getBoundingClientRect() ?? triggerRect
+    const inputBarInset = 50
+    const viewportPadding = 12
+    const preferredWidth = Math.max(0, anchorRect.width - inputBarInset * 2)
+    const panelWidth = Math.min(window.innerWidth - viewportPadding * 2, preferredWidth)
+    let panelLeft = anchorRect.left + inputBarInset
+    const maxLeft = window.innerWidth - viewportPadding - panelWidth
+    panelLeft = Math.min(Math.max(panelLeft, viewportPadding), Math.max(viewportPadding, maxLeft))
+
+    const estimatedHeight = 430
+    const spaceBelow = window.innerHeight - triggerRect.bottom
+    const spaceAbove = triggerRect.top
+    const shouldOpenUp = spaceAbove > spaceBelow && spaceAbove > estimatedHeight / 2
+    const gap = 8
+
+    setOpenUp(shouldOpenUp)
+    setPanelStyle({
+      left: Math.round(panelLeft),
+      width: Math.round(panelWidth),
+      ...(shouldOpenUp
+        ? { bottom: Math.round(window.innerHeight - triggerRect.top + gap) }
+        : { top: Math.round(triggerRect.bottom + gap) }),
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleViewportChange = () => updatePanelLayout()
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+    return () => {
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [isOpen, updatePanelLayout])
+
   const handleToggle = useCallback(
     (event: React.MouseEvent) => {
       if (disabled) return
       event.preventDefault()
       event.stopPropagation()
-      if (!isOpen && triggerRef.current) {
-        const rect = triggerRef.current.getBoundingClientRect()
-        const panelWidth = Math.min(672, window.innerWidth - 24)
-        const estimatedHeight = 430
-        const spaceBelow = window.innerHeight - rect.bottom
-        const spaceAbove = rect.top
-        setOpenUp(spaceAbove > spaceBelow && spaceAbove > estimatedHeight / 2)
-        setAlignRight(rect.left + panelWidth > window.innerWidth - 12)
-        setMounted(false)
-        window.setTimeout(() => setMounted(true), 10)
+
+      if (isOpen) {
+        setIsOpen(false)
+        return
       }
-      setIsOpen((prev) => !prev)
+
+      updatePanelLayout()
+      setMounted(false)
+      if (mountedTimerRef.current != null) {
+        window.clearTimeout(mountedTimerRef.current)
+      }
+      mountedTimerRef.current = window.setTimeout(() => setMounted(true), 10)
+      setIsOpen(true)
     },
-    [disabled, isOpen],
+    [disabled, isOpen, updatePanelLayout],
   )
 
   return (
@@ -218,15 +275,17 @@ export default function ModelPicker({
         </svg>
       </div>
 
-      {isOpen && (
-        <div
-          className={[
-            'absolute z-[65] w-[min(42rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 shadow-2xl shadow-gray-900/15 ring-1 ring-black/5 backdrop-blur-xl transition duration-150 dark:border-white/[0.08] dark:bg-gray-900/95 dark:shadow-black/40 dark:ring-white/10',
-            alignRight ? 'right-0' : 'left-0',
-            openUp ? 'bottom-full mb-2' : 'top-full mt-2',
-            mounted ? 'translate-y-0 opacity-100' : openUp ? 'translate-y-1 opacity-0' : '-translate-y-1 opacity-0',
-          ].join(' ')}
-        >
+      {isOpen &&
+        panelStyle &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={panelStyle}
+            className={[
+              'fixed z-[65] overflow-hidden rounded-2xl border border-gray-200 bg-white/95 shadow-2xl shadow-gray-900/15 ring-1 ring-black/5 backdrop-blur-xl transition duration-150 dark:border-white/[0.08] dark:bg-gray-900/95 dark:shadow-black/40 dark:ring-white/10',
+              mounted ? 'translate-y-0 opacity-100' : openUp ? 'translate-y-1 opacity-0' : '-translate-y-1 opacity-0',
+            ].join(' ')}
+          >
           <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-white/[0.08]">
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">选择模型</p>
@@ -244,7 +303,7 @@ export default function ModelPicker({
             </button>
           </div>
 
-          <div className="grid max-h-[28rem] sm:grid-cols-[9rem_1fr]">
+          <div className="grid max-h-[28rem] sm:grid-cols-[11rem_1fr]">
             <aside className="flex gap-1 overflow-x-auto border-b border-gray-100 p-2 dark:border-white/[0.08] sm:flex-col sm:overflow-x-visible sm:border-b-0 sm:border-r">
               {groupedProviders.map(({ provider, items }) => {
                 const active = provider.key === activeProvider
@@ -270,8 +329,8 @@ export default function ModelPicker({
                         provider.iconText
                       )}
                     </span>
-                    <span className="truncate font-medium">{provider.name}</span>
-                    <span className="ml-auto rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-white/[0.06] dark:text-gray-400">
+                    <span className="whitespace-nowrap font-medium">{provider.name}</span>
+                    <span className="ml-auto inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] leading-none tabular-nums text-gray-500 dark:bg-white/[0.06] dark:text-gray-400">
                       {items.length}
                     </span>
                   </button>
@@ -298,8 +357,8 @@ export default function ModelPicker({
                     ].join(' ')}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</span>
                         {item.isNew && (
                           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
                             NEW
@@ -341,8 +400,9 @@ export default function ModelPicker({
               当前：{selected.label}
             </div>
           )}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

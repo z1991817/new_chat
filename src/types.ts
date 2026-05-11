@@ -39,6 +39,7 @@ export interface TaskParams {
   output_compression: number | null
   moderation: 'auto' | 'low'
   n: number
+  negativePromptEnabled: boolean
 }
 
 export const DEFAULT_PARAMS: TaskParams = {
@@ -49,6 +50,7 @@ export const DEFAULT_PARAMS: TaskParams = {
   output_compression: null,
   moderation: 'auto',
   n: 1,
+  negativePromptEnabled: false,
 }
 
 // ===== 输入图片（UI 层面） =====

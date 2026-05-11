@@ -185,7 +185,7 @@ export default function PromptLibraryDetailModal({ item, imageUrl, imageList, on
             <button
               type="button"
               onClick={handleUsePrompt}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-stone-950 text-[#f3d9a5] hover:bg-stone-800 dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5] dark:hover:bg-[#d8b46a]/18 transition text-sm font-medium whitespace-nowrap"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#0f172a] text-white hover:bg-slate-800 transition text-sm font-medium whitespace-nowrap"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />

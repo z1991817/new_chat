@@ -9,7 +9,7 @@ const navItems: Array<{ label: string; key: string; path: '/' | '/prompts' | '/c
 ]
 
 const primaryButtonClass =
-  'rounded-lg border border-stone-900 bg-stone-950 px-3 py-1.5 text-sm font-semibold text-[#f3d9a5] shadow-sm shadow-stone-900/10 transition-colors hover:bg-stone-800 dark:border-[#d8b46a]/30 dark:bg-[#d8b46a]/12 dark:text-[#f3d9a5] dark:hover:bg-[#d8b46a]/18'
+  'rounded-lg border border-slate-900 bg-[#0f172a] px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-slate-900/10 transition-colors hover:bg-slate-800'
 const accountButtonClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-white/[0.08] dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-white/[0.06]'
 const accountMenuClass =

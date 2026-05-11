@@ -208,7 +208,7 @@ export default function ConsumptionPage() {
             className={[
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
               activeTab === 'recharge'
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                ? 'bg-[#0f172a] text-white shadow-sm hover:bg-slate-800'
                 : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200',
             ].join(' ')}
           >
@@ -220,7 +220,7 @@ export default function ConsumptionPage() {
             className={[
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
               activeTab === 'points'
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                ? 'bg-[#0f172a] text-white shadow-sm hover:bg-slate-800'
                 : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200',
             ].join(' ')}
           >

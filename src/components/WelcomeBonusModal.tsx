@@ -85,7 +85,7 @@ export default function WelcomeBonusModal({ open }: WelcomeBonusModalProps) {
           <button
             type="button"
             onClick={handleRegister}
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-semibold text-[#f3d9a5] shadow-sm shadow-stone-900/10 transition-colors hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500/35 dark:border dark:border-[#d8b46a]/30 dark:bg-[#d8b46a]/12 dark:hover:bg-[#d8b46a]/18"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#0f172a] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-900/10 transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500/35"
           >
             <Sparkles className="h-4 w-4" aria-hidden="true" />
             立即注册

@@ -382,6 +382,7 @@ function normalizeParamsForSettings(params: TaskParams, settings: AppSettings): 
     aspectRatio: normalizedAspectRatio ?? (DEFAULT_PARAMS.aspectRatio || '1:1'),
     size: normalizeImageSize(params.size) || DEFAULT_PARAMS.size,
     quality: settings.codexCli ? DEFAULT_PARAMS.quality : params.quality,
+    negativePromptEnabled: Boolean(params.negativePromptEnabled),
   }
 }
 
@@ -1244,6 +1245,7 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
             skuCode: requestSkuCode || undefined,
             imageUrl: isImageToImage ? uploadedImageUrlsWithBase[0] : undefined,
             imageUrls: isImageToImage ? uploadedImageUrlsWithBase : undefined,
+            negativePromptEnabled: task.params.negativePromptEnabled,
             idempotencyKey: requestIdempotencyKey,
             skuId: requestSku?.id,
           })
@@ -1259,6 +1261,7 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
             imageUrl: uploadedImageUrlsWithBase,
             quality: requestQuality,
             style: 'vivid',
+            negativePromptEnabled: task.params.negativePromptEnabled,
             uploadToCos: true,
             idempotencyKey: requestIdempotencyKey,
             ...(requiresSizeParam ? { size: requestSize } : {}),
@@ -1274,6 +1277,7 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
             n: 1,
             quality: requestQuality,
             style: 'vivid',
+            negativePromptEnabled: task.params.negativePromptEnabled,
             uploadToCos: true,
             idempotencyKey: requestIdempotencyKey,
             ...(requiresSizeParam ? { size: requestSize } : {}),

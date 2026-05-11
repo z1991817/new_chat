@@ -969,6 +969,61 @@ export default function InputBar() {
     </div>
   )
 
+  const renderNegativePromptToggle = (compact = false) => {
+    const enabled = params.negativePromptEnabled
+    const toggleNegativePrompt = () => {
+      setParams({ negativePromptEnabled: !enabled })
+    }
+
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={toggleNegativePrompt}
+        className={[
+          'flex items-center justify-between gap-3 rounded-2xl border border-gray-200/60 bg-white/45 text-left shadow-sm transition-all duration-200 dark:border-white/[0.08] dark:bg-white/[0.03]',
+          compact ? 'px-3 py-2' : 'px-3 py-2.5',
+        ].join(' ')}
+        title={enabled ? '关闭反向提示词' : '开启反向提示词'}
+      >
+        <span className="min-w-0">
+          <span
+            className={[
+              'block truncate text-xs font-medium',
+              'text-gray-700 dark:text-gray-200',
+            ].join(' ')}
+          >
+            反向提示词
+          </span>
+          {!compact && (
+            <span
+              className={[
+                'block truncate text-[11px]',
+                'text-gray-400 dark:text-gray-500',
+              ].join(' ')}
+            >
+              {enabled ? '已开启' : '减少不想要的元素'}
+            </span>
+          )}
+        </span>
+        <span
+          className={[
+            'relative h-5 w-9 flex-shrink-0 rounded-full transition-colors',
+            enabled ? 'bg-black' : 'bg-gray-200 dark:bg-white/[0.08]',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'absolute top-0.5 h-4 w-4 rounded-full shadow-sm transition-transform',
+              enabled ? 'translate-x-4 bg-white' : 'translate-x-0.5 bg-white',
+            ].join(' ')}
+          />
+        </span>
+      </button>
+    )
+  }
+
   const renderConsumeBadge = (compact = false) => (
     <div
       className={[
@@ -1131,53 +1186,56 @@ export default function InputBar() {
           {/* 参数 + 按钮 */}
           <div className="mt-3">
             {/* 桌面端布局 */}
-            <div className="hidden sm:flex items-end justify-between gap-3">
-              {renderParams('grid-cols-6')}
+            <div className="hidden sm:flex flex-col gap-2">
+              <div className="flex items-end justify-between gap-3">
+                {renderParams('grid-cols-6')}
 
-              <div className="flex items-end gap-2 flex-shrink-0 mb-0.5">
-                {renderConsumeBadge()}
-                <div
-                  className="relative"
-                  onMouseEnter={() => setAttachHover(true)}
-                  onMouseLeave={() => setAttachHover(false)}
-                >
-                  <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
-                  <button
-                    onClick={() => !atImageLimit && fileInputRef.current?.click()}
-                    className={`p-2.5 rounded-xl transition-all shadow-sm ${
-                      atImageLimit
-                        ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
-                        : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300 hover:shadow'
-                    }`}
-                    title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                <div className="flex items-end gap-2 flex-shrink-0 mb-0.5">
+                  {renderConsumeBadge()}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setAttachHover(true)}
+                    onMouseLeave={() => setAttachHover(false)}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                  </button>
-                </div>
-                <div
-                  className="relative"
-                  onMouseEnter={() => setSubmitHover(true)}
-                  onMouseLeave={() => setSubmitHover(false)}
-                >
-                  <ButtonTooltip visible={!token && submitHover} text="请先登录后再生成" />
-                  <button
-                    onClick={() => token ? submitTask() : setLoginOpen(true)}
-                    disabled={token ? !canSubmit : false}
-                    className={`p-2.5 rounded-xl transition-all shadow-sm hover:shadow ${
-                      !token
-                        ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
-                        : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
-                    }`}
-                    title={token ? (maskDraft ? '遮罩编辑 (Ctrl+Enter)' : '生成 (Ctrl+Enter)') : '请先登录'}
+                    <ButtonTooltip visible={atImageLimit && attachHover} text={`参考图数量已达上限（${API_MAX_IMAGES} 张），无法继续添加`} />
+                    <button
+                      onClick={() => !atImageLimit && fileInputRef.current?.click()}
+                      className={`p-2.5 rounded-xl transition-all shadow-sm ${
+                        atImageLimit
+                          ? 'bg-gray-200 dark:bg-white/[0.04] text-gray-300 dark:text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-200 dark:bg-white/[0.06] hover:bg-gray-300 dark:hover:bg-white/[0.1] text-gray-500 dark:text-gray-300 hover:shadow'
+                      }`}
+                      title={atImageLimit ? `已达上限 ${API_MAX_IMAGES} 张` : '添加参考图'}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setSubmitHover(true)}
+                    onMouseLeave={() => setSubmitHover(false)}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </button>
+                    <ButtonTooltip visible={!token && submitHover} text="请先登录后再生成" />
+                    <button
+                      onClick={() => token ? submitTask() : setLoginOpen(true)}
+                      disabled={token ? !canSubmit : false}
+                      className={`p-2.5 rounded-xl transition-all shadow-sm hover:shadow ${
+                        !token
+                          ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
+                          : 'bg-[#0f172a] text-white hover:bg-slate-800 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
+                      }`}
+                      title={token ? (maskDraft ? '遮罩编辑 (Ctrl+Enter)' : '生成 (Ctrl+Enter)') : '请先登录'}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
+              {renderNegativePromptToggle()}
             </div>
 
             {/* 移动端布局 */}
@@ -1185,6 +1243,9 @@ export default function InputBar() {
               <div className={`collapse-section${mobileCollapsed ? ' collapsed' : ''}`}>
                 <div className="collapse-inner">
                   {renderParams('grid-cols-2')}
+                  <div className="mt-2">
+                    {renderNegativePromptToggle(true)}
+                  </div>
                   <div className="h-2" />
                 </div>
               </div>
@@ -1223,7 +1284,7 @@ export default function InputBar() {
                     className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm ${
                       !token
                         ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
-                        : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
+                        : 'bg-[#0f172a] text-white hover:bg-slate-800 disabled:bg-gray-300 dark:disabled:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed'
                     }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
