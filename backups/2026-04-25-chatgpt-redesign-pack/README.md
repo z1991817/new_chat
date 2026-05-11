@@ -33,24 +33,24 @@
 首选方案：
 
 - 前端：`React + Vite + TypeScript`
-- UI：`HeroUI + Tailwind CSS v4`
+- UI：本地轻量组件 + `Tailwind CSS 3.4`
 - 图标：`lucide-react`
 - 状态管理：`Zustand`
-- 请求与缓存：`@tanstack/react-query`
-- 表单与校验：`react-hook-form + zod`
+- 请求与缓存：当前以 typed plain functions 和本地状态为主，必要时再评估新增请求库
+- 表单与校验：当前以本地表单状态和轻量校验为主，必要时再评估 schema 库
 - 图片任务轮询：前端轮询或服务端转发轮询
 - 部署方式：前端静态部署，后端单独提供接口层，统一对接 `Kie.ai`
 
 推荐这个组合的原因：
 
-- 比 `Next SSR` 更轻，服务器压力更小
+- 比重型 SSR 框架更轻，服务器压力更小
 - 和现有组件体系更接近，设计系统更容易统一
 - 很适合“对话式生成 + 参数面板 + 历史记录”的产品形态
 - 桌面端和移动端可以共用一套交互模型
 
-备选方案：
+当前方案：
 
-- 如果保留现有项目结构，可以继续用 `Next.js`，但创作页尽量按客户端应用来做，不依赖重型服务端渲染。
+- 保持现有 `Vite + React + TypeScript + Express SSR` 项目结构，不再按 Next.js 项目规划。
 
 ## 推荐界面结构
 

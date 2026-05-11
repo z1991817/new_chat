@@ -1,6 +1,6 @@
 ---
 name: artimg-pro-guardrails
-description: Guardrails for developing artImg Pro as a minimal, fast AI image generation workbench. Use when Codex writes, reviews, refactors, tests, or plans artImg Pro code; when adding dependencies; when changing Next.js App Router, React, Tailwind, API routes, image task flows, SEO content, or UI; and when the user asks to keep development aligned, lean, performant, non-redundant, or not drifting from the product plan.
+description: Guardrails for developing artImg Pro as a minimal, fast AI image generation workbench. Use when Codex writes, reviews, refactors, tests, or plans artImg Pro code; when adding dependencies; when changing Vite, React, TypeScript, Express SSR, Tailwind, API task flows, SEO content, or UI; and when the user asks to keep development aligned, lean, performant, non-redundant, or not drifting from the product plan.
 ---
 
 # artImg Pro Guardrails
@@ -12,7 +12,7 @@ Apply this skill before doing artImg Pro implementation, review, refactor, depen
 Read these first:
 
 1. `AGENTS.md`
-2. `backups/2026-04-25-chatgpt-redesign-pack/ARTIMG_PRO_NEXT_WORKBENCH_PLAN.md`
+2. `backups/2026-04-25-chatgpt-redesign-pack/ARTIMG_PRO_VITE_REACT_WORKBENCH_PLAN.md`
 
 If either file is missing, stop and tell the user which guardrail file is unavailable.
 
@@ -20,10 +20,12 @@ If either file is missing, stop and tell the user which guardrail file is unavai
 
 - Build the home page as the usable AI image workbench, not a marketing landing page.
 - Keep the app minimal, fast, and quiet. Avoid decorative layouts, generic SaaS sections, and chat-framework UI.
-- Use Next.js App Router, TypeScript, Tailwind CSS v4, small local components, and Radix primitives only when interaction complexity justifies them.
+- Use the current stack: Vite, React, TypeScript, custom Express SSR, Tailwind CSS, local components, Zustand where needed, and Vitest.
+- Do not infer or introduce Next.js, App Router, Server Components, Route Handlers, `next/image`, `next.config.*`, `app/page.tsx`, or `"use client"` boundaries.
+- Do not use the local `next-best-practices` skill for this repository unless the user explicitly asks about a Next.js migration.
+- If using `vercel-react-best-practices`, apply only framework-neutral React guidance and ignore Next.js-only rules.
 - Do not introduce `assistant-ui`, Ant Design, MUI, Mantine, HeroUI, large animation libraries, or broad UI kits without explicit user approval.
-- Use Server Components by default. Do not put `"use client"` on `app/page.tsx`, root layouts, or broad page shells.
-- Keep hydration limited to prompt input, parameters, upload controls, task status, result interactions, and necessary dialogs/sheets.
+- Keep hydration and expensive client code limited to the workbench interactions that need it.
 - Preserve SEO HTML on the home page: metadata, `h1`, concise intro, public examples, use cases, FAQ, image alt text, and canonical/OG metadata when appropriate.
 - Keep initial home JS within the 100-150KB gzip target where feasible.
 
@@ -40,11 +42,11 @@ If either file is missing, stop and tell the user which guardrail file is unavai
 
 Before adding a dependency, answer:
 
-- Does the platform, Next.js, React, Tailwind, Radix, or a small local helper already solve this?
+- Does the platform, Vite, React, Tailwind, existing local code, or a small typed helper already solve this?
 - Is the package loaded on the home page or only behind a user action?
 - Is it replacing real complexity, or just convenience?
 - Does it duplicate an existing library?
-- Can it be imported per primitive or dynamically?
+- Can it be imported narrowly or dynamically?
 
 If the answer is unclear, ask the user before installing.
 
@@ -53,13 +55,14 @@ If the answer is unclear, ask the user before installing.
 - Prefer typed plain functions and small components.
 - Prefer direct imports over local barrel files.
 - Add shared constants, schemas, or helpers only after real reuse exists.
-- Validate API input with `zod`.
-- Keep provider-specific image generation code behind a small server-side boundary.
+- Validate external inputs at the API/backend boundary with the lightest suitable approved approach.
+- Keep provider-specific image generation code behind a small boundary.
 - Use discriminated unions for task state: `idle`, `submitting`, `queued`, `generating`, `success`, `failed`.
 - Put user-triggered logic in event handlers, not effects.
 - Derive render state during render where possible.
 - Avoid `useMemo` for trivial primitive expressions.
-- Do not define components inside components.
+- Do not define components inside other components.
+- Guard browser-only APIs in SSR-compatible code.
 
 ## UI Checks
 
@@ -75,12 +78,11 @@ If the answer is unclear, ask the user before installing.
 For substantial changes, prefer:
 
 ```text
-npm run lint
 npm run test
 npm run build
 ```
 
-For workbench UI changes, also run or recommend Playwright/browser verification for:
+For workbench UI changes, also run or recommend browser verification for:
 
 - home page opens
 - `h1` and SEO text exist
@@ -89,4 +91,4 @@ For workbench UI changes, also run or recommend Playwright/browser verification 
 - API failure shows a useful error and retry path
 - mobile layout has no horizontal overflow
 
-If a script does not exist yet, add it during project setup or state that it is not available.
+If a script does not exist yet, add it during project setup only when the task calls for it, or state that it is not available.

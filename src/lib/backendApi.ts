@@ -226,7 +226,7 @@ function shouldUseImageBase(path: string): boolean {
 function resolveImageBaseOrigin(settings: AppSettings): string {
   const envValue = import.meta.env.VITE_IMAGE_BASE_URL?.trim()
   if (envValue) return normalizeOrigin(envValue)
-  return 'https://claude.artimg.top'
+  return 'https://img.artimg.top'
 }
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
