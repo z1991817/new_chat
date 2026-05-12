@@ -2,6 +2,10 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useStore, reuseConfig, editOutputs, removeTask, loadMoreMyCreations } from '../store'
 import TaskCard from './TaskCard'
 
+const EAGER_IMAGE_COUNT = 6
+const PRELOAD_IMAGE_COUNT = 30
+const IMAGE_PRELOAD_ROOT_MARGIN = '1600px 0px'
+
 export default function TaskGrid() {
   const tasks = useStore((s) => s.tasks)
   const searchQuery = useStore((s) => s.searchQuery)
@@ -24,6 +28,7 @@ export default function TaskGrid() {
   const initialSelection = useRef<string[]>([])
   const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const [queuedImageTaskIds, setQueuedImageTaskIds] = useState<Set<string>>(() => new Set())
 
   const filteredTasks = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => b.createdAt - a.createdAt)
@@ -189,6 +194,57 @@ export default function TaskGrid() {
     return () => observer.disconnect()
   }, [filteredTasks.length])
 
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+
+    const taskIds = new Set(filteredTasks.map((task) => task.id))
+    setQueuedImageTaskIds((prev) => {
+      const next = new Set([...prev].filter((id) => taskIds.has(id)))
+      for (const task of filteredTasks.slice(0, PRELOAD_IMAGE_COUNT)) {
+        next.add(task.id)
+      }
+      let changed = next.size !== prev.size
+      if (!changed) {
+        for (const id of next) {
+          if (!prev.has(id)) {
+            changed = true
+            break
+          }
+        }
+      }
+      return changed ? next : prev
+    })
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setQueuedImageTaskIds(new Set(filteredTasks.slice(0, PRELOAD_IMAGE_COUNT).map((task) => task.id)))
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setQueuedImageTaskIds((prev) => {
+          const next = new Set(prev)
+          for (const entry of entries) {
+            const taskId = entry.target.getAttribute('data-task-id')
+            if (!taskId) continue
+            if (entry.isIntersecting) next.add(taskId)
+          }
+          return next
+        })
+      },
+      {
+        root: null,
+        rootMargin: IMAGE_PRELOAD_ROOT_MARGIN,
+        threshold: 0,
+      },
+    )
+
+    const cards = grid.querySelectorAll('.task-card-wrapper')
+    cards.forEach((card) => observer.observe(card))
+    return () => observer.disconnect()
+  }, [filteredTasks])
+
   if (!filteredTasks.length) {
     return (
       <div className="text-center py-20 text-gray-400 dark:text-gray-500">
@@ -223,7 +279,7 @@ export default function TaskGrid() {
       className="relative min-h-[50vh]"
     >
       <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
-        {filteredTasks.map((task) => (
+        {filteredTasks.map((task, index) => (
           <div key={task.id} className="task-card-wrapper" data-task-id={task.id}>
             <TaskCard
               task={task}
@@ -246,6 +302,8 @@ export default function TaskGrid() {
               onReuse={() => reuseConfig(task)}
               onEditOutputs={() => editOutputs(task)}
               onDelete={() => handleDelete(task)}
+              imageLoading={index < EAGER_IMAGE_COUNT ? 'eager' : 'lazy'}
+              shouldLoadImage={index < EAGER_IMAGE_COUNT || queuedImageTaskIds.has(task.id)}
               isSelected={selectedTaskIds.includes(task.id)}
             />
           </div>

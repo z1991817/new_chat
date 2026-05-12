@@ -78,7 +78,8 @@ export default function DetailModal() {
 
   const currentOutputImageId = task?.outputImages?.[imageIndex] || ''
   const currentOutputCosSrc = currentOutputImageId ? task?.outputCosUrlByImage?.[currentOutputImageId] || '' : ''
-  const currentOutputImageSrc = currentOutputCosSrc || (currentOutputImageId ? imageSrcs[currentOutputImageId] || '' : '')
+  const currentOutputBaseSrc = currentOutputCosSrc || (currentOutputImageId ? imageSrcs[currentOutputImageId] || '' : '')
+  const currentOutputImageSrc = currentOutputBaseSrc
   const outputLightboxImageList = useMemo(
     () => (task?.outputImages ?? []).map((imgId) => task?.outputCosUrlByImage?.[imgId] || imgId),
     [task?.outputImages, task?.outputCosUrlByImage],
@@ -301,6 +302,9 @@ export default function DetailModal() {
                 ref={mainImageRef}
                 src={currentOutputImageSrc}
                 className="max-w-[calc(100%-2rem)] max-h-[calc(100%-2rem)] object-contain cursor-pointer"
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
                 onLoad={() => {
                   const panel = imagePanelRef.current
                   const image = mainImageRef.current
@@ -498,6 +502,8 @@ export default function DetailModal() {
                           <img
                             src={displaySrc}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                             alt=""
                           />
                           {isMaskTarget && (

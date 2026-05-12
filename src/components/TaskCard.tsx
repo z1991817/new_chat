@@ -3,6 +3,7 @@ import type { TaskRecord } from '../types'
 import { useStore, getCachedImage, ensureImageCached, setTaskFavorite, retryTask } from '../store'
 import { formatImageRatio } from '../lib/size'
 import { ParamValue } from '../lib/paramDisplay'
+import { buildTaskThumbnailUrl } from '../lib/imageDelivery'
 
 interface Props {
   task: TaskRecord
@@ -10,6 +11,8 @@ interface Props {
   onEditOutputs: () => void
   onDelete: () => void
   onClick: (e: React.MouseEvent | React.TouchEvent) => void
+  imageLoading?: 'eager' | 'lazy'
+  shouldLoadImage?: boolean
   isSelected?: boolean
 }
 
@@ -19,9 +22,12 @@ export default function TaskCard({
   onEditOutputs,
   onDelete,
   onClick,
+  imageLoading = 'lazy',
+  shouldLoadImage = true,
   isSelected,
 }: Props) {
   const [thumbSrc, setThumbSrc] = useState<string>('')
+  const [thumbFallbackSrc, setThumbFallbackSrc] = useState<string>('')
   const [coverRatio, setCoverRatio] = useState<string>('')
   const [now, setNow] = useState(Date.now())
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -34,6 +40,8 @@ export default function TaskCard({
   const suppressClickUntilRef = useRef(0)
   const horizontalSwipeRef = useRef(false)
   const firstOutputImageId = task.outputImages?.[0] ?? ''
+  const firstOutputCosUrl = firstOutputImageId ? task.outputCosUrlByImage?.[firstOutputImageId] || '' : ''
+  const thumbnailSourceUrl = firstOutputCosUrl || firstOutputImageId
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (swipeResetTimerRef.current != null) {
@@ -108,43 +116,55 @@ export default function TaskCard({
     return () => clearInterval(id)
   }, [task.status])
 
-  // 加载缩略图
+  // 加载缩略图。远程 COS 图片先走 Cloudflare 变换 URL，失败后回退到原始 cos_url。
   useEffect(() => {
-    setCoverRatio('')
+    if (!thumbnailSourceUrl) {
+      setCoverRatio('')
+      setThumbSrc('')
+      setThumbFallbackSrc('')
+      return
+    }
 
-    if (firstOutputImageId) {
-      const cached = getCachedImage(firstOutputImageId)
+    if (!shouldLoadImage) return
+
+    if (thumbnailSourceUrl) {
+      setCoverRatio('')
+      const thumbnailUrl = buildTaskThumbnailUrl(thumbnailSourceUrl)
+      setThumbFallbackSrc(thumbnailSourceUrl)
+
+      const cached = getCachedImage(thumbnailUrl)
       if (cached) {
         setThumbSrc(cached)
       } else {
-        ensureImageCached(firstOutputImageId).then((url) => {
-          if (url) setThumbSrc(url)
+        let cancelled = false
+        ensureImageCached(thumbnailUrl).then((url) => {
+          if (!cancelled && url) setThumbSrc(url)
         })
-      }
-    } else {
-      setThumbSrc('')
-    }
-  }, [firstOutputImageId])
-
-  useEffect(() => {
-    if (!thumbSrc) return
-
-    let cancelled = false
-    const image = new Image()
-    image.onload = () => {
-      if (!cancelled && image.naturalWidth > 0 && image.naturalHeight > 0) {
-        setCoverRatio(formatImageRatio(image.naturalWidth, image.naturalHeight))
+        return () => {
+          cancelled = true
+        }
       }
     }
-    image.src = thumbSrc
-    if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+  }, [shouldLoadImage, thumbnailSourceUrl])
+
+  const handleThumbnailLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget
+    if (image.naturalWidth > 0 && image.naturalHeight > 0) {
       setCoverRatio(formatImageRatio(image.naturalWidth, image.naturalHeight))
     }
+  }
 
-    return () => {
-      cancelled = true
+  const handleThumbnailError = () => {
+    if (!thumbFallbackSrc || thumbSrc === thumbFallbackSrc) return
+    const cached = getCachedImage(thumbFallbackSrc)
+    if (cached) {
+      setThumbSrc(cached)
+      return
     }
-  }, [thumbSrc])
+    ensureImageCached(thumbFallbackSrc).then((url) => {
+      if (url) setThumbSrc(url)
+    })
+  }
 
   const duration = (() => {
     let seconds: number
@@ -290,7 +310,11 @@ export default function TaskCard({
               <img
                 src={thumbSrc}
                 className="w-full h-full object-cover"
-                loading="lazy"
+                loading={imageLoading}
+                decoding="async"
+                fetchPriority={imageLoading === 'eager' ? 'high' : 'auto'}
+                onLoad={handleThumbnailLoad}
+                onError={handleThumbnailError}
                 alt=""
               />
               {task.outputImages.length > 1 && (
