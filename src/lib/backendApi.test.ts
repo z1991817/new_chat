@@ -30,6 +30,11 @@ function getLastInit(fetchMock: ReturnType<typeof mockTaskFetch>) {
   return lastCall?.[1] as RequestInit | undefined
 }
 
+function getLastUrl(fetchMock: ReturnType<typeof mockTaskFetch>) {
+  const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
+  return String(lastCall?.[0])
+}
+
 describe('backend image task creation', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -98,8 +103,13 @@ describe('backend image task creation', () => {
 
     await getMyCreationsPage(DEFAULT_SETTINGS, 'token', 1, 15)
 
+    const url = new URL(getLastUrl(fetchMock))
     const init = getLastInit(fetchMock)
     const headers = init?.headers as Headers
+    expect(url.pathname).toBe('/app/my-creations')
+    expect(url.searchParams.get('page')).toBe('1')
+    expect(url.searchParams.get('pageSize')).toBe('15')
+    expect(url.searchParams.has('__artimg_no_store')).toBe(true)
     expect(init).toMatchObject({
       method: 'GET',
       cache: 'no-store',

@@ -236,6 +236,15 @@ function buildUrl(baseUrl: string, path: string): string {
   return new URL(path.startsWith('/') ? path : `/${path}`, `${normalizeBaseUrl(baseUrl)}/`).toString()
 }
 
+function buildNoStoreUrl(baseUrl: string, path: string, method: RequestOptions['method']): string {
+  const url = buildUrl(baseUrl, path)
+  if (method !== 'GET') return url
+
+  const noStoreUrl = new URL(url)
+  noStoreUrl.searchParams.set('__artimg_no_store', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  return noStoreUrl.toString()
+}
+
 function shouldUseImageBase(path: string): boolean {
   const normalized = path.trim().toLowerCase()
   return (
@@ -283,7 +292,7 @@ async function requestBackend<T>(settings: AppSettings, path: string, options: R
     body = JSON.stringify(options.body)
   }
 
-  const response = await fetch(buildUrl(settings.baseUrl, path), {
+  const response = await fetch(buildNoStoreUrl(settings.baseUrl, path, method), {
     method,
     headers,
     cache: 'no-store',

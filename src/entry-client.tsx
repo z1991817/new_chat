@@ -2,6 +2,7 @@
 import { createRoot, hydrateRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { retireServiceWorkers } from './lib/serviceWorkerCleanup'
 import { installMobileViewportGuards } from './lib/viewport'
 
 installMobileViewportGuards()
@@ -28,34 +29,31 @@ if (typeof window.requestIdleCallback === 'function') {
   globalThis.setTimeout(loadHarmonyOsFont, 3000)
 }
 
-if ('serviceWorker' in navigator) {
-  if (import.meta.env.PROD) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch((error) => {
-        console.error('Service worker registration failed:', error)
-      })
-    })
+function renderApp() {
+  const rootElement = document.getElementById('root')
+
+  if (!rootElement) {
+    throw new Error('Root element #root was not found')
+  }
+
+  const app = (
+    <StrictMode>
+      <App initialPath={window.location.pathname} />
+    </StrictMode>
+  )
+
+  if (rootElement.hasChildNodes()) {
+    hydrateRoot(rootElement, app)
   } else {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => registration.unregister())
-    })
+    createRoot(rootElement).render(app)
   }
 }
 
-const rootElement = document.getElementById('root')
+retireServiceWorkers().then((shouldReload) => {
+  if (shouldReload) {
+    window.location.reload()
+    return
+  }
 
-if (!rootElement) {
-  throw new Error('Root element #root was not found')
-}
-
-const app = (
-  <StrictMode>
-    <App initialPath={window.location.pathname} />
-  </StrictMode>
-)
-
-if (rootElement.hasChildNodes()) {
-  hydrateRoot(rootElement, app)
-} else {
-  createRoot(rootElement).render(app)
-}
+  renderApp()
+})

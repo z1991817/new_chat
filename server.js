@@ -27,6 +27,17 @@ async function startServer() {
     const clientDist = path.resolve(__dirname, 'dist/client')
     const serverEntryPath = path.resolve(__dirname, 'dist/server/entry-server.js')
 
+    app.use((req, res, next) => {
+      if (req.path === '/sw.js' || req.path === '/index.html' || req.path === '/') {
+        res.set({
+          'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        })
+      }
+      next()
+    })
+
     app.use('/assets', express.static(path.join(clientDist, 'assets'), { immutable: true, maxAge: '1y' }))
     app.use('/fonts', express.static(path.join(clientDist, 'fonts'), { immutable: true, maxAge: '1y' }))
     app.use(express.static(clientDist, { index: false }))
@@ -58,7 +69,12 @@ async function startServer() {
       rendered = await render(url)
       const html = pageTemplate.replace('<!--ssr-outlet-->', rendered.html)
 
-      res.status(200).set({ 'Content-Type': 'text/html' }).end(html)
+      res.status(200).set({
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      }).end(html)
     } catch (error) {
       if (!isProd) {
         vite.ssrFixStacktrace(error)
