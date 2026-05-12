@@ -775,8 +775,10 @@ async function waitTaskBySse(
       headers: {
         Accept: 'text/event-stream',
         Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'no-store, no-cache, max-age=0',
+        Pragma: 'no-cache',
       },
+      cache: 'no-store',
       signal: controller.signal,
     })
     if (!response.ok) {

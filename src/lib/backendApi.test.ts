@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../types'
-import { createBananaImage, createImageToImage, createTextToImage } from './backendApi'
+import { createBananaImage, createImageToImage, createTextToImage, getMyCreationsPage } from './backendApi'
 
 const taskEnvelope = {
   code: 202,
@@ -23,6 +23,11 @@ function getJsonBody(fetchMock: ReturnType<typeof mockTaskFetch>) {
   const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
   const init = lastCall?.[1] as RequestInit | undefined
   return JSON.parse(String(init?.body))
+}
+
+function getLastInit(fetchMock: ReturnType<typeof mockTaskFetch>) {
+  const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
+  return lastCall?.[1] as RequestInit | undefined
 }
 
 describe('backend image task creation', () => {
@@ -86,5 +91,21 @@ describe('backend image task creation', () => {
       negativePromptEnabled: true,
       promptOptimizeStatus: 1,
     })
+  })
+
+  it('disables browser cache for my creations requests', async () => {
+    const fetchMock = mockTaskFetch()
+
+    await getMyCreationsPage(DEFAULT_SETTINGS, 'token', 1, 15)
+
+    const init = getLastInit(fetchMock)
+    const headers = init?.headers as Headers
+    expect(init).toMatchObject({
+      method: 'GET',
+      cache: 'no-store',
+    })
+    expect(headers.get('Cache-Control')).toBe('no-store, no-cache, max-age=0')
+    expect(headers.get('Pragma')).toBe('no-cache')
+    expect(headers.get('Authorization')).toBe('Bearer token')
   })
 })

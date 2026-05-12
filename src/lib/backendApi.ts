@@ -270,7 +270,8 @@ async function requestBackend<T>(settings: AppSettings, path: string, options: R
   const method = options.method ?? 'GET'
   const headers = new Headers({
     Accept: 'application/json',
-    'Cache-Control': 'no-store',
+    'Cache-Control': 'no-store, no-cache, max-age=0',
+    Pragma: 'no-cache',
   })
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`)
 
@@ -285,6 +286,7 @@ async function requestBackend<T>(settings: AppSettings, path: string, options: R
   const response = await fetch(buildUrl(settings.baseUrl, path), {
     method,
     headers,
+    cache: 'no-store',
     body,
     signal: options.signal,
   })

@@ -1,5 +1,16 @@
-const CACHE_NAME = 'gpt-image-playground-v0.1.5'
+const CACHE_NAME = 'gpt-image-playground-v0.1.6'
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './pwa-icon.svg']
+const API_PATH_PREFIXES = ['/app', '/api', '/api-proxy', '/v1']
+
+function isApiLikeRequest(request, url) {
+  if (request.cache === 'no-store' || request.cache === 'reload') return true
+  if (request.destination !== '') return false
+
+  const accept = request.headers.get('Accept') || ''
+  if (accept.includes('application/json') || accept.includes('text/event-stream')) return true
+
+  return API_PATH_PREFIXES.some((prefix) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`))
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,6 +35,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+
+  if (isApiLikeRequest(request, url)) {
+    event.respondWith(fetch(request))
+    return
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(

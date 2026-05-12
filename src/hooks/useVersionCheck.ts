@@ -36,7 +36,10 @@ export function useVersionCheck() {
   useEffect(() => {
     let cancelled = false
 
-    fetch(API_URL, { headers: { Accept: 'application/vnd.github.v3+json' } })
+    fetch(API_URL, {
+      cache: 'no-store',
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
