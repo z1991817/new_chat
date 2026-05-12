@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { logout, useStore } from '../store'
+import ContactModal from './ContactModal'
 
 const navItems: Array<{ label: string; key: string; path: '/' | '/prompts' | '/consumption' | '/recharge' }> = [
   { label: '首页', key: 'home', path: '/' },
@@ -28,6 +29,7 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
   const user = useStore((s) => s.user)
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [contactOpen, setContactOpen] = useState(false)
   const [hoveredNav, setHoveredNav] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const desktopAccountRef = useRef<HTMLDivElement>(null)
@@ -79,6 +81,12 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
     logout()
   }
 
+  const handleContactOpen = () => {
+    setContactOpen(true)
+    setMenuOpen(false)
+    setAccountMenuOpen(false)
+  }
+
   return (
     <header data-no-drag-select className="safe-area-top sticky top-0 z-40 bg-white/80 dark:bg-gray-950/80 backdrop-blur border-b border-gray-200 dark:border-white/[0.08]">
       <div className="safe-area-x safe-header-inner max-w-7xl mx-auto hidden sm:flex items-center justify-between">
@@ -125,6 +133,22 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
                 </button>
               )
             })}
+            <button
+              type="button"
+              onClick={handleContactOpen}
+              onMouseEnter={() => setHoveredNav('contact')}
+              onMouseLeave={() => setHoveredNav(null)}
+              data-testid="desktop-contact-nav"
+              className="relative px-3 py-1.5 rounded-md font-medium text-gray-500 transition-colors duration-150 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              联系我们
+              <span
+                className={[
+                  'absolute bottom-0 left-1/2 h-[2px] -translate-x-1/2 rounded-full bg-gray-400 transition-all duration-200 ease-out dark:bg-gray-500',
+                  hoveredNav === 'contact' ? 'w-4 opacity-100' : 'w-0 opacity-0',
+                ].join(' ')}
+              />
+            </button>
           </nav>
         </div>
         <div className="flex items-center gap-2">
@@ -188,6 +212,7 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
         <button
           type="button"
           onClick={() => setMenuOpen((value) => !value)}
+          data-testid="mobile-menu-button"
           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           aria-label="打开菜单"
           aria-expanded={menuOpen}
@@ -327,12 +352,21 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
                 >
                   我的消费
                 </button>
+                <button
+                  type="button"
+                  data-testid="mobile-contact-nav"
+                  className="w-full min-h-[44px] rounded-lg px-3 py-2 text-left text-base font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/[0.06] dark:active:bg-white/[0.08]"
+                  onClick={handleContactOpen}
+                >
+                  联系我们
+                </button>
               </nav>
             </div>
           </div>,
           document.body
         )}
       </div>
+      {contactOpen && <ContactModal onClose={() => setContactOpen(false)} />}
     </header>
   )
 }

@@ -142,6 +142,14 @@ npm run build
 
 - Do not report `npm run lint` unless a lint script exists or you add one as part of the task.
 
+## Browser Verification Workflow
+
+- Keep browser verification token-cheap. Prefer `npm run test`, `npm run build`, targeted `Invoke-WebRequest` checks, and concise DOM/HTML assertions before opening the in-app browser.
+- After frontend changes, use the in-app browser only when visual interaction materially reduces risk, such as modal behavior, layout overflow, responsive drawers, or canvas/image rendering.
+- If the in-app browser connection fails, times out, or cannot attach, make at most one short recovery attempt. Do not repeatedly reload the browser skill, retry long setup cells, or print large browser snapshots.
+- After one failed browser recovery, switch to an alternate verification path: HTTP response checks, SSR HTML checks, build output review, unit/component tests, or a short manual-verification note with the local URL.
+- When the browser is unavailable, state that once in the final response and report the fallback checks that were completed. Do not spend extra tokens narrating browser internals.
+
 ## Codex Working Rules
 
 - Before coding, read this file and the Vite React product plan.

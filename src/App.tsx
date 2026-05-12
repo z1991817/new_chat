@@ -10,6 +10,7 @@ import PromptLibraryGrid from './components/PromptLibraryGrid'
 import HomeSeoContent from './components/HomeSeoContent'
 import InputBar from './components/InputBar'
 import ImageContextMenu from './components/ImageContextMenu'
+import Footer from './components/Footer'
 
 const ConsumptionPage = lazy(() => import('./components/ConsumptionPage'))
 const RechargePage = lazy(() => import('./components/RechargePage'))
@@ -144,7 +145,7 @@ export default function App({ initialPath }: AppProps) {
       <main
         data-home-main
         data-drag-select-surface
-        className={currentPath === HOME_PATH ? 'pb-48' : 'pb-8'}
+        className={currentPath === HOME_PATH ? 'pb-48 sm:pb-64' : 'pb-8 sm:pb-20'}
       >
         <div className="safe-area-x max-w-7xl mx-auto">
           {currentPath === CONSUMPTION_PATH ? (
@@ -171,6 +172,7 @@ export default function App({ initialPath }: AppProps) {
               {currentPath === HOME_PATH && <HomeSeoContent />}
             </>
           )}
+          <Footer />
         </div>
       </main>
       {currentPath === HOME_PATH && <InputBar />}

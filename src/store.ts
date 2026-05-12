@@ -14,6 +14,7 @@ import { hashDataUrl } from './lib/imageHash'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { calculateImageSize, normalizeImageSize } from './lib/size'
+import { resolveAllowedImageSize, resolveAllowedSizeTier } from './lib/generationConstraints'
 import {
   BackendApiError,
   type BackendModel,
@@ -377,10 +378,18 @@ export function showCodexCliPrompt(force = false, reason = '接口返回的提�
 
 function normalizeParamsForSettings(params: TaskParams, settings: AppSettings): TaskParams {
   const normalizedAspectRatio = normalizeAspectRatioInput(params.aspectRatio)
+  const aspectRatio = normalizedAspectRatio ?? (DEFAULT_PARAMS.aspectRatio || '1:1')
+  const normalizedSize = normalizeImageSize(params.size) || DEFAULT_PARAMS.size
+  const requestedTier = buildImageSizeTier(resolveRequestSize(normalizedSize))
+  const allowedTier = resolveAllowedSizeTier(settings.model, aspectRatio, requestedTier)
+  const allowedSize = allowedTier === requestedTier
+    ? normalizedSize
+    : resolveAllowedImageSize(settings.model, aspectRatio, allowedTier) ?? normalizedSize
+
   return {
     ...params,
-    aspectRatio: normalizedAspectRatio ?? (DEFAULT_PARAMS.aspectRatio || '1:1'),
-    size: normalizeImageSize(params.size) || DEFAULT_PARAMS.size,
+    aspectRatio,
+    size: allowedSize,
     quality: settings.codexCli ? DEFAULT_PARAMS.quality : params.quality,
     negativePromptEnabled: Boolean(params.negativePromptEnabled),
   }
@@ -1127,7 +1136,11 @@ export async function submitTask(options: { allowFullMask?: boolean } = {}) {
   const model = settings.model.trim()
   const modelConfig = useStore.getState().models.find((item) => item.model_key === model)
   const requestSize = resolveRequestSize(normalizedParams.size)
-  const requestImageSizeTier = buildImageSizeTier(requestSize)
+  const requestImageSizeTier = resolveAllowedSizeTier(
+    model,
+    normalizedParams.aspectRatio || '1:1',
+    buildImageSizeTier(requestSize),
+  )
   const matchedSkuBySize = modelConfig?.skus?.find((sku) => {
     return sku.image_size?.trim().toUpperCase() === requestImageSizeTier
   })
@@ -1217,7 +1230,11 @@ async function executeTask(taskId: string, resumeMeta?: PersistedTaskMeta) {
       const model = settings.model.trim()
       const modelConfig = state.models.find((item) => item.model_key === model)
       const requestSize = resolveRequestSize(task.params.size)
-      const requestImageSizeTier = buildImageSizeTier(requestSize)
+      const requestImageSizeTier = resolveAllowedSizeTier(
+        model,
+        task.params.aspectRatio || '1:1',
+        buildImageSizeTier(requestSize),
+      )
       const matchedSkuBySize = modelConfig?.skus?.find((sku) => {
         return sku.image_size?.trim().toUpperCase() === requestImageSizeTier
       })

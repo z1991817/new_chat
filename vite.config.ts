@@ -23,6 +23,9 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [react()],
     base: '/',
+    test: {
+      exclude: ['node_modules/**', 'dist/**', 'e2e/**'],
+    },
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
       __DEV_PROXY_CONFIG__: JSON.stringify(devProxyConfig),

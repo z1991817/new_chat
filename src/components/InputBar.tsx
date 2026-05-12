@@ -4,6 +4,11 @@ import { Coins } from 'lucide-react'
 import { useStore, submitTask, addImageFromFile, removeMultipleTasks, setMultipleTasksFavorite } from '../store'
 import { DEFAULT_IMAGES_MODEL, DEFAULT_RESPONSES_MODEL } from '../types'
 import { calculateImageSize, normalizeImageSize, type SizeTier } from '../lib/size'
+import {
+  isResolutionAllowedForModel,
+  resolveAllowedImageSize,
+  resolveAllowedSizeTier,
+} from '../lib/generationConstraints'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import { resolveAssetUrl } from '../lib/backendApi'
 import Select from './Select'
@@ -318,7 +323,14 @@ export default function InputBar() {
     }
     return pickClosestRatio(params.size, ratioOptions)
   }, [params.aspectRatio, params.size, ratioOptions])
-  const resolutionOptions = baseResolutionOptions
+  const resolutionOptions = useMemo(
+    () =>
+      baseResolutionOptions.filter((item) => {
+        const value = item.value.trim()
+        return !isKnownSizeTier(value) || isResolutionAllowedForModel(settings.model, selectedRatio, value)
+      }),
+    [baseResolutionOptions, selectedRatio, settings.model],
+  )
   const selectedResolution = useMemo(
     () => pickResolutionValue(params.size, selectedRatio, resolutionOptions.map((item) => item.value)),
     [params.size, selectedRatio, resolutionOptions],
@@ -376,6 +388,14 @@ export default function InputBar() {
     setParams({ aspectRatio: selectedRatio })
   }, [params.aspectRatio, selectedRatio, setParams])
 
+  useEffect(() => {
+    const currentTier = buildImageSizeTier(params.size, selectedRatio)
+    const allowedTier = resolveAllowedSizeTier(settings.model, selectedRatio, currentTier)
+    if (allowedTier === currentTier) return
+    const allowedSize = calculateImageSize(allowedTier, selectedRatio)
+    if (allowedSize) setParams({ size: allowedSize })
+  }, [params.size, selectedRatio, settings.model, setParams])
+
   useEffect(() => () => {
     if (imageHintTimerRef.current != null) {
       window.clearTimeout(imageHintTimerRef.current)
@@ -406,7 +426,7 @@ export default function InputBar() {
     (ratio: string, resolutionValue: string) => {
       const normalized = resolutionValue.trim()
       if (isKnownSizeTier(normalized)) {
-        const size = calculateImageSize(normalized, ratio)
+        const size = resolveAllowedImageSize(settings.model, ratio, normalized)
         if (size) setParams({ size })
         return
       }
@@ -416,7 +436,7 @@ export default function InputBar() {
         setParams({ size: `${directSize.width}x${directSize.height}` })
       }
     },
-    [setParams],
+    [settings.model, setParams],
   )
 
   const clearImageHintTimer = () => {
@@ -985,7 +1005,7 @@ export default function InputBar() {
           'flex items-center justify-between gap-3 rounded-2xl border border-gray-200/60 bg-white/45 text-left shadow-sm transition-all duration-200 dark:border-white/[0.08] dark:bg-white/[0.03]',
           compact ? 'px-3 py-2' : 'px-3 py-2.5',
         ].join(' ')}
-        title={enabled ? '关闭反向提示词' : '开启反向提示词'}
+        title={enabled ? '关闭提示词优化' : '开启提示词优化'}
       >
         <span className="min-w-0">
           <span
@@ -994,7 +1014,7 @@ export default function InputBar() {
               'text-gray-700 dark:text-gray-200',
             ].join(' ')}
           >
-            反向提示词
+            提示词优化
           </span>
           {!compact && (
             <span
@@ -1083,7 +1103,7 @@ export default function InputBar() {
         </div>
       )}
 
-      <div data-input-bar className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 w-full max-w-4xl px-3 sm:px-4 transition-all duration-300">
+      <div data-input-bar className="fixed bottom-4 sm:bottom-14 left-1/2 -translate-x-1/2 z-30 w-full max-w-4xl px-3 sm:px-4 transition-all duration-300">
         {selectedTaskIds.length > 0 && (
           <div className="flex justify-center mb-3">
             <div className="bg-gray-800/90 dark:bg-gray-800/90 backdrop-blur shadow-lg rounded-full flex items-center p-1 border border-white/10 pointer-events-auto">
@@ -1180,6 +1200,7 @@ export default function InputBar() {
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder="描述你想生成的图片..."
+            data-testid="prompt-input"
             className="w-full px-4 py-3 rounded-2xl border border-gray-200/60 dark:border-white/[0.08] bg-white/50 dark:bg-white/[0.03] text-sm focus:outline-none leading-relaxed resize-none shadow-sm transition-[border-color,box-shadow] duration-200"
           />
 
@@ -1221,6 +1242,7 @@ export default function InputBar() {
                     <button
                       onClick={() => token ? submitTask() : setLoginOpen(true)}
                       disabled={token ? !canSubmit : false}
+                      data-testid="desktop-generate-button"
                       className={`p-2.5 rounded-xl transition-all shadow-sm hover:shadow ${
                         !token
                           ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'
@@ -1281,6 +1303,7 @@ export default function InputBar() {
                   <button
                     onClick={() => token ? submitTask() : setLoginOpen(true)}
                     disabled={token ? !canSubmit : false}
+                    data-testid="mobile-generate-button"
                     className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm ${
                       !token
                         ? 'bg-gray-300 dark:bg-white/[0.06] text-white cursor-pointer'

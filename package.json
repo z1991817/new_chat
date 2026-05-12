@@ -10,6 +10,8 @@
     "build:server": "vite build --ssr src/entry-server.tsx --outDir dist/server",
     "preview": "node server.js --prod",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

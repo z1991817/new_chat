@@ -198,6 +198,29 @@ interface BackendTaskEnvelope {
   }
 }
 
+type PromptOptimizeStatus = 0 | 1
+
+interface PromptOptimizePayload {
+  negativePromptEnabled?: boolean
+  promptOptimizeStatus?: PromptOptimizeStatus
+}
+
+function normalizePromptOptimizeStatus(payload: PromptOptimizePayload): PromptOptimizeStatus {
+  if (payload.promptOptimizeStatus === 0 || payload.promptOptimizeStatus === 1) {
+    return payload.promptOptimizeStatus
+  }
+  return payload.negativePromptEnabled ? 1 : 0
+}
+
+function withPromptOptimizeStatus<T extends PromptOptimizePayload>(
+  payload: T,
+): T & { promptOptimizeStatus: PromptOptimizeStatus } {
+  return {
+    ...payload,
+    promptOptimizeStatus: normalizePromptOptimizeStatus(payload),
+  }
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, '')
 }
@@ -355,6 +378,7 @@ export async function createBananaImage(
     imageUrl?: string
     imageUrls?: string[]
     negativePromptEnabled?: boolean
+    promptOptimizeStatus?: PromptOptimizeStatus
     idempotencyKey: string
     skuId?: number
   },
@@ -362,7 +386,7 @@ export async function createBananaImage(
   const response = await requestBackend<BackendTaskEnvelope>(settings, '/app/banana-CreateImage', {
     method: 'POST',
     token,
-    body: payload,
+    body: withPromptOptimizeStatus(payload),
   })
 
   return {
@@ -388,6 +412,7 @@ export async function createTextToImage(
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
     negativePromptEnabled?: boolean
+    promptOptimizeStatus?: PromptOptimizeStatus
     uploadToCos: true
     idempotencyKey: string
   },
@@ -395,7 +420,7 @@ export async function createTextToImage(
   const response = await requestBackend<BackendTaskEnvelope>(settings, '/app/text-to-image', {
     method: 'POST',
     token,
-    body: payload,
+    body: withPromptOptimizeStatus(payload),
   })
 
   return {
@@ -421,6 +446,7 @@ export async function createImageToImage(
     quality?: 'low' | 'medium' | 'high'
     style?: 'vivid' | 'natural'
     negativePromptEnabled?: boolean
+    promptOptimizeStatus?: PromptOptimizeStatus
     uploadToCos: true
     idempotencyKey: string
   },
@@ -428,7 +454,7 @@ export async function createImageToImage(
   const response = await requestBackend<BackendTaskEnvelope>(settings, '/app/image-to-image', {
     method: 'POST',
     token,
-    body: payload,
+    body: withPromptOptimizeStatus(payload),
   })
 
   return {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { getPromptLibraries, resolveAssetUrl, type PromptLibraryRecord } from '../lib/backendApi'
+import { buildTaskThumbnailUrl } from '../lib/imageDelivery'
 import PromptLibraryDetailModal from './PromptLibraryDetailModal'
 
 const PAGE_SIZE = 15
@@ -19,14 +20,25 @@ function mergeById(current: PromptLibraryRecord[], incoming: PromptLibraryRecord
 
 function PromptLibraryThumbnail({ imageUrl, alt }: { imageUrl: string; alt: string }) {
   const [loaded, setLoaded] = useState(false)
+  const [src, setSrc] = useState(() => buildTaskThumbnailUrl(imageUrl))
+
+  useEffect(() => {
+    setLoaded(false)
+    setSrc(buildTaskThumbnailUrl(imageUrl))
+  }, [imageUrl])
+
+  const handleError = () => {
+    if (src !== imageUrl) setSrc(imageUrl)
+  }
 
   return (
     <img
-      src={imageUrl}
+      src={src}
       alt={alt}
       loading="lazy"
       decoding="async"
       onLoad={() => setLoaded(true)}
+      onError={handleError}
       className={`h-full w-full object-contain transition-[opacity,transform] duration-200 group-hover:scale-[1.02] ${
         loaded ? 'opacity-100' : 'opacity-0'
       }`}
