@@ -7,9 +7,10 @@ if [ "$ENABLE_API_PROXY" = "true" ]; then
     API_PROXY_AVAILABLE=true
 fi
 
-# 查找所有 js 文件并将占位符替换为实际的 API_URL
-find /usr/share/nginx/html/assets -type f -name "*.js" -exec sed -i "s|__VITE_DEFAULT_API_URL_PLACEHOLDER__|$API_URL|g" {} +
-find /usr/share/nginx/html/assets -type f -name "*.js" -exec sed -i "s|__VITE_API_PROXY_AVAILABLE_PLACEHOLDER__|$API_PROXY_AVAILABLE|g" {} +
+# 查找所有 js 文件并将占位符替换为实际的 API_URL。
+# Vite SSR 构建会把客户端产物放在 dist/client/assets，因此这里递归替换整个静态目录。
+find /usr/share/nginx/html -type f -name "*.js" -exec sed -i "s|__VITE_DEFAULT_API_URL_PLACEHOLDER__|$API_URL|g" {} +
+find /usr/share/nginx/html -type f -name "*.js" -exec sed -i "s|__VITE_API_PROXY_AVAILABLE_PLACEHOLDER__|$API_PROXY_AVAILABLE|g" {} +
 
 # 检查是否启用了 API 代理
 if [ "$ENABLE_API_PROXY" != "true" ]; then
