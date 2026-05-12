@@ -9,7 +9,7 @@ import type {
   ExportData,
   StoredImage,
 } from './types'
-import { DEFAULT_SETTINGS, DEFAULT_PARAMS } from './types'
+import { DEFAULT_SETTINGS, DEFAULT_PARAMS, DEFAULT_IMAGES_MODEL } from './types'
 import { hashDataUrl } from './lib/imageHash'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
@@ -188,12 +188,13 @@ export const useStore = create<AppState>()(
         settings: {
           ...st.settings,
           ...s,
+          baseUrl: DEFAULT_SETTINGS.baseUrl,
           apiMode:
             s.apiMode === 'images' || s.apiMode === 'responses'
               ? s.apiMode
               : st.settings.apiMode ?? DEFAULT_SETTINGS.apiMode,
           codexCli: s.codexCli ?? st.settings.codexCli ?? DEFAULT_SETTINGS.codexCli,
-          apiProxy: s.apiProxy ?? st.settings.apiProxy ?? DEFAULT_SETTINGS.apiProxy,
+          apiProxy: false,
         },
       })),
       token: '',
@@ -876,7 +877,7 @@ function normalizeBackendBaseUrl(baseUrl: string): string {
   if (/^https?:\/\/api\.openai\.com(?:\/|$)/i.test(value)) {
     return DEFAULT_SETTINGS.baseUrl
   }
-  return value
+  return DEFAULT_SETTINGS.baseUrl
 }
 
 export async function refreshCurrentUser(options: { silent?: boolean } = {}) {
@@ -903,8 +904,12 @@ export async function refreshModels(options: { silent?: boolean } = {}) {
   try {
     const models = await getModels(state.settings, state.token || undefined)
     state.setModels(models)
-    if (models.length > 0 && !models.some((item) => item.model_key === state.settings.model)) {
-      state.setSettings({ model: models[0].model_key })
+    const currentModel = state.settings.model.trim()
+    const exactMatch = models.find((item) => item.model_key === currentModel)
+    const caseInsensitiveMatch = models.find((item) => item.model_key.toLowerCase() === currentModel.toLowerCase())
+    const defaultMatch = models.find((item) => item.model_key.toUpperCase() === DEFAULT_IMAGES_MODEL)
+    if (models.length > 0 && !exactMatch) {
+      state.setSettings({ model: caseInsensitiveMatch?.model_key ?? defaultMatch?.model_key ?? models[0].model_key })
     }
     return models
   } catch (error) {

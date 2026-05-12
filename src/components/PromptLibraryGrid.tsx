@@ -9,6 +9,7 @@ type PromptLibrarySearchField = 'prompt' | 'tag'
 
 interface PromptLibraryGridProps {
   searchField: PromptLibrarySearchField
+  onUsePrompt?: () => void
 }
 
 function mergeById(current: PromptLibraryRecord[], incoming: PromptLibraryRecord[]) {
@@ -47,7 +48,7 @@ function PromptLibraryThumbnail({ imageUrl, alt }: { imageUrl: string; alt: stri
   )
 }
 
-export default function PromptLibraryGrid({ searchField }: PromptLibraryGridProps) {
+export default function PromptLibraryGrid({ searchField, onUsePrompt }: PromptLibraryGridProps) {
   const settings = useStore((s) => s.settings)
   const token = useStore((s) => s.token)
   const searchQuery = useStore((s) => s.searchQuery)
@@ -221,6 +222,7 @@ export default function PromptLibraryGrid({ searchField }: PromptLibraryGridProp
         imageUrl={selectedImageUrl}
         imageList={lightboxImageList}
         onClose={() => setSelectedItem(null)}
+        onUsePrompt={onUsePrompt}
       />
 
       <div ref={loadMoreRef} className="pb-8 flex justify-center">

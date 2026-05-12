@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_PARAMS, DEFAULT_SETTINGS } from './types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_IMAGES_MODEL, DEFAULT_PARAMS, DEFAULT_SETTINGS } from './types'
 import type { TaskRecord } from './types'
-import { editOutputs, submitTask, useStore } from './store'
+import { editOutputs, refreshModels, submitTask, useStore } from './store'
 
 const imageA = { id: 'image-a', dataUrl: 'data:image/png;base64,a' }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
   return {
@@ -76,5 +80,39 @@ describe('mask draft lifecycle in store actions', () => {
     await submitTask()
 
     expect(useStore.getState().maskDraft).toBeNull()
+  })
+})
+
+describe('model defaults', () => {
+  beforeEach(() => {
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS },
+      token: '',
+      models: [],
+      showToast: vi.fn(),
+    })
+  })
+
+  it('defaults Images API generation to GPT-IMAGE-2', () => {
+    expect(useStore.getState().settings.model).toBe(DEFAULT_IMAGES_MODEL)
+  })
+
+  it('keeps GPT-IMAGE-2 selected after backend models load', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      code: 200,
+      data: {
+        list: [
+          { id: 1, name: 'Nano Banana Pro', model_key: 'gemini-3-pro-image' },
+          { id: 2, name: 'GPT Image 2', model_key: 'GPT-IMAGE-2' },
+        ],
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await refreshModels({ silent: true })
+
+    expect(useStore.getState().settings.model).toBe('GPT-IMAGE-2')
   })
 })

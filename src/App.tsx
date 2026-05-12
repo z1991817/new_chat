@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { initStore } from './store'
 import { useStore } from './store'
-import { normalizeBaseUrl } from './lib/api'
 import type { ApiMode } from './types'
 import Header from './components/Header'
 import SearchBar from './components/SearchBar'
@@ -66,12 +65,7 @@ export default function App({ initialPath }: AppProps) {
     initializedRef.current = true
 
     const searchParams = new URLSearchParams(window.location.search)
-    const nextSettings: { baseUrl?: string; apiKey?: string; codexCli?: boolean; apiMode?: ApiMode } = {}
-
-    const apiUrlParam = searchParams.get('apiUrl')
-    if (apiUrlParam !== null) {
-      nextSettings.baseUrl = normalizeBaseUrl(apiUrlParam.trim())
-    }
+    const nextSettings: { apiKey?: string; codexCli?: boolean; apiMode?: ApiMode } = {}
 
     const apiKeyParam = searchParams.get('apiKey')
     if (apiKeyParam !== null) {
@@ -163,7 +157,10 @@ export default function App({ initialPath }: AppProps) {
                 promptLibrarySearchField={promptLibrarySearchField}
                 onPromptLibrarySearchFieldChange={setPromptLibrarySearchField}
               />
-              <PromptLibraryGrid searchField={promptLibrarySearchField} />
+              <PromptLibraryGrid
+                searchField={promptLibrarySearchField}
+                onUsePrompt={() => handleNavigate(HOME_PATH)}
+              />
             </>
           ) : (
             <>

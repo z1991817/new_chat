@@ -5,6 +5,7 @@ import { formatImageRatio } from '../lib/size'
 import { ActualValueBadge } from '../lib/paramDisplay'
 import { copyBlobToClipboard, copyTextToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { downloadImage } from '../lib/downloadImage'
 
 export default function DetailModal() {
   const tasks = useStore((s) => s.tasks)
@@ -266,6 +267,17 @@ export default function DetailModal() {
     }
   }
 
+  const handleDownloadCurrentOutput = async () => {
+    if (!currentOutputImageSrc) return
+    try {
+      await downloadImage(currentOutputImageSrc, 'art-image')
+      showToast('开始下载', 'success')
+    } catch (err) {
+      console.error(err)
+      showToast('下载失败', 'error')
+    }
+  }
+
   const handleRetry = () => {
     retryTask(task)
     setDetailTaskId(null)
@@ -340,6 +352,21 @@ export default function DetailModal() {
                   )
                 )}
               </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDownloadCurrentOutput()
+                }}
+                className="absolute right-4 top-[15px] inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-black/50 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus:ring-2 focus:ring-white/60"
+                aria-label="下载图片"
+                title="下载图片"
+              >
+                <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                下载
+              </button>
               {outputLen > 1 && (
                 <>
                   <button

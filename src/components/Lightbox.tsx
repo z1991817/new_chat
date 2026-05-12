@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useStore, getCachedImage, ensureImageCached } from '../store'
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape'
 import { createMaskPreviewDataUrl } from '../lib/canvasImage'
+import { downloadImage } from '../lib/downloadImage'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 10
@@ -12,10 +13,10 @@ function clamp(v: number, min: number, max: number) {
 
 export default function Lightbox() {
   const lightboxImageId = useStore((s) => s.lightboxImageId)
-  const lightboxImageList = useStore((s) => s.lightboxImageList)
   const setLightboxImageId = useStore((s) => s.setLightboxImageId)
   const maskDraft = useStore((s) => s.maskDraft)
   const tasks = useStore((s) => s.tasks)
+  const showToast = useStore((s) => s.showToast)
 
   const [src, setSrc] = useState('')
   const [maskImageSrc, setMaskImageSrc] = useState('')
@@ -23,6 +24,17 @@ export default function Lightbox() {
 
   const close = useCallback(() => setLightboxImageId(null), [setLightboxImageId])
   useCloseOnEscape(Boolean(lightboxImageId), close)
+
+  const handleDownload = useCallback(async () => {
+    if (!src) return
+    try {
+      await downloadImage(src, 'art-image')
+      showToast('开始下载', 'success')
+    } catch (err) {
+      console.error(err)
+      showToast('下载失败', 'error')
+    }
+  }, [showToast, src])
 
   // 图片加载
   useEffect(() => {
@@ -88,31 +100,6 @@ export default function Lightbox() {
     }
   }, [src, maskImageSrc])
 
-  // 导航
-  const currentIndex = lightboxImageId ? lightboxImageList.indexOf(lightboxImageId) : -1
-  const total = lightboxImageList.length
-  const showNav = total > 1
-
-  const goTo = useCallback((idx: number) => {
-    if (lightboxImageList.length === 0) return
-    const wrapped = ((idx % lightboxImageList.length) + lightboxImageList.length) % lightboxImageList.length
-    setLightboxImageId(lightboxImageList[wrapped], lightboxImageList)
-  }, [lightboxImageList, setLightboxImageId])
-
-  const goPrev = useCallback(() => { if (showNav) goTo(currentIndex - 1) }, [showNav, currentIndex, goTo])
-  const goNext = useCallback(() => { if (showNav) goTo(currentIndex + 1) }, [showNav, currentIndex, goTo])
-
-  // 键盘左右切换
-  useEffect(() => {
-    if (!lightboxImageId || !showNav) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev() }
-      if (e.key === 'ArrowRight') { e.preventDefault(); goNext() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [lightboxImageId, showNav, goPrev, goNext])
-
   if (!lightboxImageId || !src) return null
 
   return (
@@ -120,11 +107,7 @@ export default function Lightbox() {
       src={src}
       maskPreviewSrc={maskPreviewSrc}
       onClose={close}
-      showNav={showNav}
-      currentIndex={currentIndex}
-      total={total}
-      onPrev={goPrev}
-      onNext={goNext}
+      onDownload={handleDownload}
     />
   )
 }
@@ -133,15 +116,11 @@ interface LightboxInnerProps {
   src: string
   maskPreviewSrc?: string
   onClose: () => void
-  showNav: boolean
-  currentIndex: number
-  total: number
-  onPrev: () => void
-  onNext: () => void
+  onDownload: () => void
 }
 
 /** 内部组件：保证挂载时 DOM 已经存在，所有 ref / effect 都可靠 */
-function LightboxInner({ src, maskPreviewSrc, onClose, showNav, currentIndex, total, onPrev, onNext }: LightboxInnerProps) {
+function LightboxInner({ src, maskPreviewSrc, onClose, onDownload }: LightboxInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // 用 ref 追踪最新变换，避免闭包过期
@@ -437,9 +416,6 @@ function LightboxInner({ src, maskPreviewSrc, onClose, showNav, currentIndex, to
   const isDragging = dragRef.current.active || pinchRef.current.active
   const zoomPercent = Math.round(s * 100)
 
-  const navBtnClass =
-    'absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-all z-10 backdrop-blur-sm'
-
   return (
     <div
       ref={containerRef}
@@ -450,6 +426,21 @@ function LightboxInner({ src, maskPreviewSrc, onClose, showNav, currentIndex, to
       onDoubleClick={onDoubleClick}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md animate-fade-in" />
+      <button
+        type="button"
+        className="absolute right-4 top-4 z-10 inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-black/65 focus:outline-none focus:ring-2 focus:ring-white/60"
+        onClick={(e) => {
+          e.stopPropagation()
+          void onDownload()
+        }}
+        aria-label="下载图片"
+        title="下载图片"
+      >
+        <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        下载
+      </button>
       <div className="relative animate-zoom-in">
         <div
           className="relative flex items-center justify-center"
@@ -475,28 +466,6 @@ function LightboxInner({ src, maskPreviewSrc, onClose, showNav, currentIndex, to
         </div>
       </div>
 
-      {/* 左右切换按钮 */}
-      {showNav && !isZoomed && (
-        <>
-          <button
-            className={`${navBtnClass} left-3 sm:left-5`}
-            onClick={(e) => { e.stopPropagation(); goPrev() }}
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            className={`${navBtnClass} right-3 sm:right-5`}
-            onClick={(e) => { e.stopPropagation(); goNext() }}
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </>
-      )}
-
       {/* 底部指示器 */}
       {showZoomBadge && isZoomed && zoomPercent !== 100 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
@@ -505,16 +474,6 @@ function LightboxInner({ src, maskPreviewSrc, onClose, showNav, currentIndex, to
           </span>
         </div>
       )}
-      {showNav && !isZoomed && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
-          <span className="px-3 py-1.5 bg-black/50 text-white/80 text-xs rounded-full backdrop-blur-sm">
-            {currentIndex + 1} / {total}
-          </span>
-        </div>
-      )}
     </div>
   )
-
-  function goPrev() { onPrev() }
-  function goNext() { onNext() }
 }

@@ -9,6 +9,7 @@ interface Props {
   imageUrl: string
   imageList: string[]
   onClose: () => void
+  onUsePrompt?: () => void
 }
 
 function formatDate(value: string | null | undefined) {
@@ -33,7 +34,7 @@ function StatusBadge({ status }: { status: number }) {
   )
 }
 
-export default function PromptLibraryDetailModal({ item, imageUrl, imageList, onClose }: Props) {
+export default function PromptLibraryDetailModal({ item, imageUrl, imageList, onClose, onUsePrompt }: Props) {
   const setLightboxImageId = useStore((s) => s.setLightboxImageId)
   const setPrompt = useStore((s) => s.setPrompt)
   const showToast = useStore((s) => s.showToast)
@@ -55,7 +56,8 @@ export default function PromptLibraryDetailModal({ item, imageUrl, imageList, on
     setPrompt(item.prompt)
     showToast('已填入输入框', 'success')
     onClose()
-  }, [item?.prompt, onClose, setPrompt, showToast])
+    onUsePrompt?.()
+  }, [item?.prompt, onClose, onUsePrompt, setPrompt, showToast])
 
   if (!item) return null
 

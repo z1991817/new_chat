@@ -16,7 +16,7 @@ const DEFAULT_BASE_URL =
   import.meta.env.VITE_DEFAULT_API_URL?.trim() ||
   import.meta.env.VITE_API_BASE_URL?.trim() ||
   'http://localhost:3000/'
-export const DEFAULT_IMAGES_MODEL = 'gpt-image-2'
+export const DEFAULT_IMAGES_MODEL = 'GPT-IMAGE-2'
 export const DEFAULT_RESPONSES_MODEL = 'gpt-5.5'
 
 export const DEFAULT_SETTINGS: AppSettings = {
