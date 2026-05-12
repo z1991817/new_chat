@@ -95,7 +95,7 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
             <button
               type="button"
               onClick={() => onNavigate('/')}
-              className="text-gray-800 dark:text-gray-100 cursor-pointer"
+              className="font-brand-subset text-gray-800 dark:text-gray-100 cursor-pointer"
               aria-label="返回首页"
             >
               Art Image
@@ -225,7 +225,7 @@ export default function Header({ currentPath, onNavigate }: HeaderProps) {
         <button
           type="button"
           onClick={() => onNavigate('/')}
-          className="absolute left-1/2 -translate-x-1/2 text-base font-bold tracking-tight text-gray-800 dark:text-gray-100 cursor-pointer"
+          className="font-brand-subset absolute left-1/2 -translate-x-1/2 text-base font-bold tracking-tight text-gray-800 dark:text-gray-100 cursor-pointer"
           aria-label="返回首页"
         >
           Art Image

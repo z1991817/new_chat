@@ -6,6 +6,28 @@ import { installMobileViewportGuards } from './lib/viewport'
 
 installMobileViewportGuards()
 
+const loadHarmonyOsFont = () => {
+  const href = `${import.meta.env.BASE_URL}fonts/harmonyos-sans-sc/regular.css`
+
+  if (document.querySelector(`link[href="${href}"]`)) {
+    return
+  }
+
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = href
+  link.onload = () => {
+    document.documentElement.classList.add('harmonyos-font-ready')
+  }
+  document.head.append(link)
+}
+
+if (typeof window.requestIdleCallback === 'function') {
+  window.requestIdleCallback(loadHarmonyOsFont, { timeout: 5000 })
+} else {
+  globalThis.setTimeout(loadHarmonyOsFont, 3000)
+}
+
 if ('serviceWorker' in navigator) {
   if (import.meta.env.PROD) {
     window.addEventListener('load', () => {

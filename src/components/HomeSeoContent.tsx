@@ -34,7 +34,7 @@ export default function HomeSeoContent() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
           AI image workbench
         </p>
-        <h2 id="home-seo-title" className="mt-2 text-xl font-semibold tracking-tight text-gray-950 dark:text-gray-50">
+        <h2 id="home-seo-title" className="font-brand-subset mt-2 text-xl font-semibold tracking-tight text-gray-950 dark:text-gray-50">
           Art Image AI 图片生成工作台
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-500 dark:text-gray-400">
