@@ -309,6 +309,7 @@ export default function TaskCard({
             <>
               <img
                 src={thumbSrc}
+                data-download-src={thumbFallbackSrc || thumbSrc}
                 data-testid="task-output-image"
                 className="w-full h-full object-cover"
                 loading={imageLoading}

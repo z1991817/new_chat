@@ -3,8 +3,15 @@ import { useStore, addImageFromUrl } from '../store'
 import { copyBlobToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { downloadImage } from '../lib/downloadImage'
 
+interface ImageMenuInfo {
+  src: string
+  downloadSrc: string
+  x: number
+  y: number
+}
+
 export default function ImageContextMenu() {
-  const [menuInfo, setMenuInfo] = useState<{ src: string; x: number; y: number } | null>(null)
+  const [menuInfo, setMenuInfo] = useState<ImageMenuInfo | null>(null)
   const showToast = useStore((s) => s.showToast)
   const inputImages = useStore((s) => s.inputImages)
   const setDetailTaskId = useStore((s) => s.setDetailTaskId)
@@ -25,6 +32,7 @@ export default function ImageContextMenu() {
         e.preventDefault()
         setMenuInfo({
           src: imgTarget.src,
+          downloadSrc: imgTarget.dataset.downloadSrc || imgTarget.src,
           x: e.clientX,
           y: e.clientY,
         })
@@ -84,7 +92,7 @@ export default function ImageContextMenu() {
     e.stopPropagation()
     setMenuInfo(null)
     try {
-      await downloadImage(menuInfo.src)
+      await downloadImage(menuInfo.downloadSrc)
       showToast('开始下载', 'success')
     } catch (err) {
       console.error(err)

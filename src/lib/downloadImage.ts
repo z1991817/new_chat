@@ -21,8 +21,41 @@ function getExtension(src: string, mimeType: string) {
   return 'png'
 }
 
+function getUrlBase() {
+  return typeof window === 'undefined' ? 'https://artimg.top/' : window.location.href
+}
+
+function isHttpUrl(src: string) {
+  try {
+    const url = new URL(src, getUrlBase())
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+export function buildDownloadRequestUrl(src: string, cacheBustValue = Date.now()) {
+  try {
+    const url = new URL(src, getUrlBase())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return src
+    url.searchParams.set('download', String(cacheBustValue))
+    return url.toString()
+  } catch {
+    return src
+  }
+}
+
 export async function downloadImage(src: string, filenamePrefix = 'image') {
-  const response = await fetch(src)
+  const downloadUrl = buildDownloadRequestUrl(src)
+  const response = await fetch(
+    downloadUrl,
+    isHttpUrl(downloadUrl)
+      ? {
+          mode: 'cors',
+          cache: 'no-store',
+        }
+      : undefined,
+  )
   if (!response.ok) {
     throw new Error(`图片下载失败：HTTP ${response.status}`)
   }

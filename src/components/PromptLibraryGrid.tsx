@@ -35,6 +35,7 @@ function PromptLibraryThumbnail({ imageUrl, alt }: { imageUrl: string; alt: stri
   return (
     <img
       src={src}
+      data-download-src={imageUrl}
       alt={alt}
       loading="lazy"
       decoding="async"
