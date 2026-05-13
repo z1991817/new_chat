@@ -20,6 +20,7 @@ function mergeById(current: PromptLibraryRecord[], incoming: PromptLibraryRecord
 }
 
 function PromptLibraryThumbnail({ imageUrl, alt }: { imageUrl: string; alt: string }) {
+  const imgRef = useRef<HTMLImageElement | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [src, setSrc] = useState(() => buildTaskThumbnailUrl(imageUrl))
 
@@ -28,18 +29,35 @@ function PromptLibraryThumbnail({ imageUrl, alt }: { imageUrl: string; alt: stri
     setSrc(buildTaskThumbnailUrl(imageUrl))
   }, [imageUrl])
 
+  useEffect(() => {
+    const img = imgRef.current
+    if (img && img.complete && img.naturalWidth > 0) {
+      setLoaded(true)
+    }
+  }, [src])
+
+  const handleLoad = () => {
+    setLoaded(true)
+  }
+
   const handleError = () => {
-    if (src !== imageUrl) setSrc(imageUrl)
+    if (src !== imageUrl) {
+      setLoaded(false)
+      setSrc(imageUrl)
+      return
+    }
+    setLoaded(false)
   }
 
   return (
     <img
+      ref={imgRef}
       src={src}
       data-download-src={imageUrl}
       alt={alt}
       loading="lazy"
       decoding="async"
-      onLoad={() => setLoaded(true)}
+      onLoad={handleLoad}
       onError={handleError}
       className={`h-full w-full object-contain transition-[opacity,transform] duration-200 group-hover:scale-[1.02] ${
         loaded ? 'opacity-100' : 'opacity-0'
